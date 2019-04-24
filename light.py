@@ -16,9 +16,6 @@ import uuid
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.backends import default_backend
 
-# this version of pygatt is old, it's what the bluetooth_le tracker component uses though..
-REQUIREMENTS = ['pygatt[GATTTOOL]==3.2.0']
-
 import pygatt
 from pygatt.backends import BLEAddressType
 
