@@ -191,6 +191,16 @@ def setup_platform(hass, config, add_entities, discovery_info=None):
     if plejdinfo is None:
         return False
 
+    # pygatt assumes the notification handle is +1, plejd has +2,
+    #  thus we monkey-patch that function here to get the right handle
+    #  for notifications
+    def plejd_notification_handles(self, uuid):
+        value_handle = self.get_handle(uuid)
+        characteristic_config_handle = value_handle + 2
+        return value_handle, characteristic_config_handle
+
+    pygatt.BLEDevice._notification_handles = plejd_notification_handles
+
     def plejd_handler_cb(handle, value):
         pi = hass.data[DATA_PLEJD]
         if handle == 22:
@@ -227,11 +237,6 @@ def setup_platform(hass, config, add_entities, discovery_info=None):
         if authenticate(plejdinfo):
             plejdinfo["device"].subscribe(LAST_DATA_UUID,
                     callback=plejd_handler_cb, indication=True)
-            # we have to register again since pygatt doesn't know enough about
-            #  where to find the plejd config handle
-            plejdinfo["device"].char_write_handle(
-                    plejdinfo["device"].get_handle(LAST_DATA_UUID) + 2,
-                    b'\x02\x00', wait_for_response=False)
 
     hass.bus.listen_once(EVENT_HOMEASSISTANT_START, _start_plejd)
 
