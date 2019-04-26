@@ -1,3 +1,6 @@
+# Copyright Klas Lindfors <klali@avm.se>
+# All rights reserved.
+
 import logging
 
 import voluptuous as vol
@@ -19,7 +22,6 @@ from cryptography.hazmat.backends import default_backend
 import pygatt
 from pygatt.backends import BLEAddressType
 
-CONF_DEBUG = 'debug'
 CONF_CRYPTO_KEY = 'crypto_key'
 CONF_DEVICES = 'devices'
 CONF_NAME = 'name'
@@ -32,7 +34,6 @@ _LOGGER = logging.getLogger(__name__)
 
 PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
     vol.Required(CONF_CRYPTO_KEY): cv.string,
-    vol.Optional(CONF_DEBUG, default=False): cv.boolean,
     vol.Optional(CONF_DEVICES, default={}): {
         cv.string: vol.Schema({
             vol.Required(CONF_NAME): cv.string
@@ -169,12 +170,7 @@ def authenticate(i):
 
 def setup_platform(hass, config, add_entities, discovery_info=None):
     cryptokey = binascii.a2b_hex(config.get(CONF_CRYPTO_KEY))
-    debug = config.get(CONF_DEBUG)
     plejdinfo = None
-
-    if debug:
-        logging.basicConfig()
-        logging.getLogger('pygatt').setLevel(logging.DEBUG)
 
     for i in range(1, 10):
         adapter, device, addr = connect()
@@ -184,7 +180,6 @@ def setup_platform(hass, config, add_entities, discovery_info=None):
                     "device": device,
                     "address": binascii.a2b_hex(addr.replace(':', ''))[::-1],
                     "key": cryptokey,
-                    "debug": debug,
                     }
             hass.data[DATA_PLEJD] = plejdinfo
             break
