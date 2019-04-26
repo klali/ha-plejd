@@ -90,8 +90,7 @@ class PlejdLight(Light):
             # since ha brightness is just one byte we shift it up and or it in to be able to get max val
             self._brightness = brightness << 8 | brightness
 
-        payload = binascii.a2b_hex("%02x0110009801" % (self._id)) + \
-                self._brightness.to_bytes(2, 'little')
+        payload = binascii.a2b_hex("%02x0110009801%04x" % (self._id, self._brightness))
 
         pi = self.hass.data[DATA_PLEJD]
 
@@ -223,10 +222,7 @@ def setup_platform(hass, config, add_entities, discovery_info=None):
             else:
                 state = True
 
-            if(dim is None):
-                device.update_state(state)
-            else:
-                device.update_state(state, dim)
+            device.update_state(state, dim)
 
     def _start_plejd(event):
         if authenticate(plejdinfo):
