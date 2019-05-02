@@ -171,10 +171,10 @@ def authenticate(i):
     resp = plejd_chalresp(i["key"], i["device"].char_read(AUTH_UUID))
     i["device"].char_write(AUTH_UUID, resp)
 
-    ping = (os.urandom(1)[0] & 0xfe).to_bytes(1, 'big')
+    ping = os.urandom(1)
     i["device"].char_write(PING_UUID, ping)
     pong = i["device"].char_read(PING_UUID)
-    if(ping[0] + 1 != pong[0]):
+    if((ping[0] + 1) & 0xff != pong[0]):
         return False
     return True
 
