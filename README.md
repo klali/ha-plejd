@@ -15,7 +15,7 @@ It requires that you know the Plejd crypto key and the device ids.
 Make sure to have pygatt installed in your python environment and the gatttool
 and hcitool binaries available.
 Run this as a custom component, put the files light.py and __init__.py in
-custom_components/plejd in your configuration.yaml add something like:
+custom\_components/plejd in your configuration.yaml add something like:
 
 ```
 light:
@@ -32,9 +32,13 @@ light:
         name: bathroom
 ```
 
+The rootless setup part of the [bluetooth\_le tracker](https://www.home-assistant.io/components/bluetooth_le_tracker/#rootless-setup)
+is interesting to get this working.
+
 ## Gathering information
 
-Obtaining the crypto key and the device ids is a crucial step to get this running, this can be extracted from an android phone running the plejd app:
+Obtaining the crypto key and the device ids is a crucial step to get this
+running, this can be extracted from an android phone running the plejd app:
 
 1. Turn on USB debugging and connect the phone to a computer.
 2. Extract a backup from the phone:
