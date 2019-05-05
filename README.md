@@ -59,6 +59,7 @@ fields using jq and shell tricks.
 
 ## License
 
+```
 Copyright 2019 Klas Lindfors <klali@avm.se>
 
 Licensed under the Apache License, Version 2.0 (the "License");
