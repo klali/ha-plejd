@@ -19,6 +19,8 @@ import voluptuous as vol
 from homeassistant.components.light import (ATTR_BRIGHTNESS, PLATFORM_SCHEMA, SUPPORT_BRIGHTNESS, Light)
 from homeassistant.const import CONF_NAME, EVENT_HOMEASSISTANT_START, EVENT_HOMEASSISTANT_STOP
 from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers.event import track_point_in_utc_time
+import homeassistant.util.dt as dt_util
 
 import binascii
 import hashlib
@@ -26,6 +28,7 @@ import os
 import struct
 import sys
 import uuid
+from datetime import timedelta
 
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.backends import default_backend
@@ -101,44 +104,51 @@ class PlejdLight(Light):
             # since ha brightness is just one byte we shift it up and or it in to be able to get max val
             self._brightness = brightness << 8 | brightness
 
-        payload = binascii.a2b_hex("%02x0110009801%04x" % (self._id, self._brightness))
-
         pi = self.hass.data[DATA_PLEJD]
 
-        pi["device"].char_write(DATA_UUID, plejd_enc_dec(pi["key"], pi["address"], payload))
+        payload = binascii.a2b_hex("%02x0110009801%04x" % (self._id, self._brightness))
+        plejd_write(pi, DATA_UUID, plejd_enc_dec(pi["key"], pi["address"], payload))
 
     def turn_off(self, **kwargs):
         pi = self.hass.data[DATA_PLEJD]
 
         payload = binascii.a2b_hex("%02x0110009700" % (self._id))
-        pi["device"].char_write(DATA_UUID, plejd_enc_dec(pi["key"], pi["address"], payload))
+        plejd_write(pi, DATA_UUID, plejd_enc_dec(pi["key"], pi["address"], payload))
 
-def connect():
+def connect(pi):
     device = None
     addr = None
+    if "adapter" in pi:
+        pi["adapter"].stop()
+    else:
+        pi["adapter"] = pygatt.GATTToolBackend(search_window_size=2048)
 
-    adapter = pygatt.GATTToolBackend(search_window_size=2048)
-    adapter.start()
-    devs = adapter.scan(timeout=5)
+    for i in range(1, 10):
+        pi["adapter"].start()
+        devs = pi["adapter"].scan(timeout=5)
 
-    for d in devs:
-        if d['name'] == "P mesh":
-            try:
-                dev = adapter.connect(d["address"], address_type=BLEAddressType.random, timeout=2)
-                for uuid in dev.discover_characteristics().keys():
-                    if(uuid == DATA_UUID):
-                        device = dev
-                        addr = d["address"]
-                        break;
-                if(device):
-                    break
-            except :
-                _LOGGER.warning("failed connecting to '%s'" % (d["address"]))
+        for d in devs:
+            if d['name'] == "P mesh":
+                try:
+                    dev = pi["adapter"].connect(d["address"], address_type=BLEAddressType.random, timeout=2)
+                    for uuid in dev.discover_characteristics().keys():
+                        if uuid == DATA_UUID:
+                            device = dev
+                            addr = d["address"]
+                            break;
+                    if device:
+                        break
+                except :
+                    _LOGGER.warning("failed connecting to '%s'" % (d["address"]))
 
-    if device is None:
-        adapter.stop()
+        if device is None:
+            _Logger.warning("no device found on iteration %d" % (i))
+            pi["adapter"].stop()
+        else:
+            break
 
-    return adapter, device, addr
+    pi["device"] = device
+    pi["address"] = binascii.a2b_hex(addr.replace(':', ''))[::-1]
 
 def disconnect(plejdinfo):
     if "adapter" in plejdinfo:
@@ -166,35 +176,35 @@ def plejd_enc_dec(key, addr, data):
 
     return output
 
-def authenticate(i):
-    i["device"].char_write(AUTH_UUID, b'\x00')
-    resp = plejd_chalresp(i["key"], i["device"].char_read(AUTH_UUID))
-    i["device"].char_write(AUTH_UUID, resp)
-
+def plejd_ping(pi):
     ping = os.urandom(1)
-    i["device"].char_write(PING_UUID, ping)
-    pong = i["device"].char_read(PING_UUID)
+    plejd_write(pi, PING_UUID, ping)
+    pong = pi["device"].char_read(PING_UUID)
     if((ping[0] + 1) & 0xff != pong[0]):
         return False
     return True
 
+def authenticate(i):
+    i["device"].char_write(AUTH_UUID, b'\x00')
+    resp = plejd_chalresp(i["key"], i["device"].char_read(AUTH_UUID))
+    i["device"].char_write(AUTH_UUID, resp)
+    return plejd_ping(i)
+
+def plejd_write(pi, uuid, data):
+    try:
+        pi["device"].char_write(uuid, data)
+    except pygatt.exceptions.NotificationTimeout as e:
+        _LOGGER.warning("Write timed-out")
+        connect(pi)
+        pi["device"].char_write(uuid, data)
+
 def setup_platform(hass, config, add_entities, discovery_info=None):
     cryptokey = binascii.a2b_hex(config.get(CONF_CRYPTO_KEY))
-    plejdinfo = None
+    plejdinfo = {"key": cryptokey}
 
-    for i in range(1, 10):
-        adapter, device, addr = connect()
-        if device:
-            plejdinfo = {
-                    "adapter": adapter,
-                    "device": device,
-                    "address": binascii.a2b_hex(addr.replace(':', ''))[::-1],
-                    "key": cryptokey,
-                    }
-            hass.data[DATA_PLEJD] = plejdinfo
-            break
-    if plejdinfo is None:
+    if(connect(plejdinfo) == False):
         return False
+    hass.data[DATA_PLEJD] = plejdinfo
 
     # pygatt assumes the notification handle is +1, plejd has +2,
     #  thus we monkey-patch that function here to get the right handle
@@ -235,10 +245,16 @@ def setup_platform(hass, config, add_entities, discovery_info=None):
 
             device.update_state(state, dim)
 
+    def _ping(now):
+        pi = hass.data[DATA_PLEJD]
+        plejd_ping(pi)
+        track_point_in_utc_time(hass, _ping, dt_util.utcnow() + timedelta(seconds = 300))
+
     def _start_plejd(event):
         if authenticate(plejdinfo):
             plejdinfo["device"].subscribe(LAST_DATA_UUID,
                     callback=plejd_handler_cb, indication=True)
+            _ping(dt_util.utcnow())
 
     hass.bus.listen_once(EVENT_HOMEASSISTANT_START, _start_plejd)
 
