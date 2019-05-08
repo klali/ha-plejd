@@ -247,7 +247,8 @@ def setup_platform(hass, config, add_entities, discovery_info=None):
 
     def _ping(now):
         pi = hass.data[DATA_PLEJD]
-        plejd_ping(pi)
+        if(plejd_ping(pi) == False):
+            connect(pi)
         track_point_in_utc_time(hass, _ping, dt_util.utcnow() + timedelta(seconds = 300))
 
     def _start_plejd(event):
