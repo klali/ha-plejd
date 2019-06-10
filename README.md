@@ -14,7 +14,7 @@ It requires that you know the Plejd crypto key and the device ids.
 
 Make sure to have pygatt installed in your python environment and the gatttool
 and hcitool binaries available.
-Run this as a custom component, put the files light.py and __init__.py in
+Run this as a custom component, put the files light.py and \_\_init\_\_.py in
 custom\_components/plejd in your configuration.yaml add something like:
 
 ```
