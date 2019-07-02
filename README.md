@@ -12,8 +12,12 @@ It requires that you know the Plejd crypto key and the device ids.
 
 ## Installing
 
-Make sure to have pygatt installed in your python environment and the gatttool
-and hcitool binaries available.
+Make sure to have bluepy installed in your python environment. Bluepy comes
+with a helper called bluepy-helper, to allow scanning for devices this has
+to be given additional capabilities:
+
+$ sudo setcap 'cap\_net\_raw,cap\_net\_admin+eip' /srv/homeassistant/lib/python3.5/site-packages/bluepy/bluepy-helper
+
 Run this as a custom component, put the files light.py and \_\_init\_\_.py in
 custom\_components/plejd in your configuration.yaml add something like:
 

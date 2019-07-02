@@ -27,14 +27,13 @@ import hashlib
 import os
 import struct
 import sys
-import uuid
 from datetime import timedelta
+from threading import Thread
 
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.backends import default_backend
 
-import pygatt
-from pygatt.backends import BLEAddressType
+from bluepy.btle import Scanner, DefaultDelegate, Peripheral, ADDR_TYPE_RANDOM, UUID, BTLEException, BTLEDisconnectError, BTLEInternalError
 
 CONF_CRYPTO_KEY = 'crypto_key'
 CONF_DEVICES = 'devices'
@@ -55,10 +54,11 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
         },
     })
 
-DATA_UUID = uuid.UUID("31ba0004-6085-4726-be45-040c957391b5")
-LAST_DATA_UUID = uuid.UUID("31ba0005-6085-4726-be45-040c957391b5")
-AUTH_UUID = uuid.UUID("31ba0009-6085-4726-be45-040c957391b5")
-PING_UUID = uuid.UUID("31ba000a-6085-4726-be45-040c957391b5")
+PLEJD_SERVICE = UUID("31ba0001-6085-4726-be45-040c957391b5")
+DATA_UUID = UUID("31ba0004-6085-4726-be45-040c957391b5")
+LAST_DATA_UUID = UUID("31ba0005-6085-4726-be45-040c957391b5")
+AUTH_UUID = UUID("31ba0009-6085-4726-be45-040c957391b5")
+PING_UUID = UUID("31ba000a-6085-4726-be45-040c957391b5")
 
 class PlejdLight(Light):
     def __init__(self, name, identity):
@@ -107,83 +107,132 @@ class PlejdLight(Light):
         pi = self.hass.data[DATA_PLEJD]
 
         payload = binascii.a2b_hex("%02x0110009801%04x" % (self._id, self._brightness))
-        plejd_write(pi, DATA_UUID, plejd_enc_dec(pi["key"], pi["address"], payload))
+        _LOGGER.debug("turning on")
+        plejd_write(pi, pi["handles"]["data"], plejd_enc_dec(pi["key"], pi["address"], payload))
 
     def turn_off(self, **kwargs):
         pi = self.hass.data[DATA_PLEJD]
 
         payload = binascii.a2b_hex("%02x0110009700" % (self._id))
-        plejd_write(pi, DATA_UUID, plejd_enc_dec(pi["key"], pi["address"], payload))
+        _LOGGER.debug("turning off")
+        plejd_write(pi, pi["handles"]["data"], plejd_enc_dec(pi["key"], pi["address"], payload))
 
 def connect(pi):
     device = None
     addr = None
-    if "adapter" in pi:
-        pi["adapter"].stop()
-    else:
-        pi["adapter"] = pygatt.GATTToolBackend(search_window_size=2048)
+
+    _LOGGER.debug("Starting plejd connection")
+
+    disconnect(pi)
+
+    scanner = Scanner()
 
     for i in range(1, 10):
-        pi["adapter"].start()
-        devs = pi["adapter"].scan(timeout=5)
+        devs = sorted(list(scanner.scan(1)), key=lambda d: d.rssi)[::-1]
 
         for d in devs:
-            if d['name'] == "P mesh":
-                try:
-                    dev = pi["adapter"].connect(d["address"], address_type=BLEAddressType.random, timeout=2)
-                    for uuid in dev.discover_characteristics().keys():
-                        if uuid == DATA_UUID:
+            for (adtype, desc, value) in d.getScanData():
+                if(adtype == 8 and value == "P mesh"):
+                    try:
+                        dev = Peripheral(d, addrType = ADDR_TYPE_RANDOM)
+                        if dev.getServiceByUUID(PLEJD_SERVICE):
                             device = dev
-                            addr = d["address"]
-                            break;
-                    if device:
+                        else:
+                            dev.disconnect()
+
                         break
-                except :
-                    _LOGGER.warning("failed connecting to '%s'" % (d["address"]))
+                    except BTLEException as e:
+                        _LOGGER.warning("failed connecting to device '%s' : '%s'" % (d.addr, e))
+            if device:
+                break
 
         if device is None:
-            _Logger.warning("no device found on iteration %d" % (i))
-            pi["adapter"].stop()
+            _LOGGER.warning("no device found on iteration %d" % (i))
         else:
             break
 
+    if device == None:
+        _LOGGER.warning("Failed to find a Plejd device to connect to")
+        return
+
+    _LOGGER.debug("Connected to Plejd device '%s'" % (device.addr))
+
     pi["device"] = device
-    pi["address"] = binascii.a2b_hex(addr.replace(':', ''))[::-1]
+    pi["address"] = binascii.a2b_hex(device.addr.replace(':', ''))[::-1]
+    pi["handles"] = {}
+    pi["handles"]["last_data"] = pi["device"].getCharacteristics(uuid=LAST_DATA_UUID)[0].getHandle()
+    pi["handles"]["auth"] = pi["device"].getCharacteristics(uuid=AUTH_UUID)[0].getHandle()
+    pi["handles"]["ping"] = pi["device"].getCharacteristics(uuid=PING_UUID)[0].getHandle()
+    pi["handles"]["data"] = pi["device"].getCharacteristics(uuid=DATA_UUID)[0].getHandle()
 
-    def plejd_handler_cb(handle, value):
-        if handle == 22:
-            dec = plejd_enc_dec(pi["key"], pi["address"], value)
-            # check if this is a device we care about
-            if dec[0] in PLEJD_DEVICES:
-                device = PLEJD_DEVICES[dec[0]]
-            else:
-                _LOGGER.debug("no match for device '%d' (%s)" % (dec[0], binascii.b2a_hex(dec)))
-                return
-            dim = 0xffff
-            state = None
-            if dec[3:5] == b'\x00\xc8' or dec[3:5] == b'\x00\x98':
-                # 00c8 and 0098 both mean state+dim
-                state = dec[5]
-                dim = int.from_bytes(dec[6:8], 'little')
-            elif dec[3:5] == b'\x00\x97':
-                # 0097 is state only
-                state = dec[5]
-            else:
-                _LOGGER.debug("no match for command '%s'" % (binascii.b2a_hex(dec[3:5])))
-                return
-            if(state == 0):
-                state = False
-            else:
-                state = True
+    class PlejdDelegate(DefaultDelegate):
+        def handleNotification(self, handle, value):
+            if handle == pi["handles"]["last_data"]:
+                dec = plejd_enc_dec(pi["key"], pi["address"], value)
+                # check if this is a device we care about
+                if dec[0] in PLEJD_DEVICES:
+                    device = PLEJD_DEVICES[dec[0]]
+                else:
+                    _LOGGER.debug("no match for device '%d' (%s)" % (dec[0], binascii.b2a_hex(dec)))
+                    return
+                dim = 0xffff
+                state = None
+                if dec[3:5] == b'\x00\xc8' or dec[3:5] == b'\x00\x98':
+                    # 00c8 and 0098 both mean state+dim
+                    state = dec[5]
+                    dim = int.from_bytes(dec[6:8], 'little')
+                elif dec[3:5] == b'\x00\x97':
+                    # 0097 is state only
+                    state = dec[5]
+                else:
+                    _LOGGER.debug("no match for command '%s'" % (binascii.b2a_hex(dec[3:5])))
+                    return
+                if(state == 0):
+                    state = False
+                else:
+                    state = True
 
-            device.update_state(state, dim)
+                device.update_state(state, dim)
+
+    class PlejdNotificationThread(Thread):
+        def __init__(self):
+            Thread.__init__(self)
+            self.stopped = True
+            _LOGGER.debug("setting up notification thread")
+
+        def stop(self):
+            _LOGGER.debug("stopping notification thread")
+            self.stopped = True
+
+        import time
+
+        def run(self):
+            _LOGGER.debug("starting notification thread")
+            self.stopped = False
+            while True:
+                _LOGGER.debug("Checking for notifications")
+                pi["device"].waitForNotifications(1)
+                if self.stopped:
+                    break
+
+            _LOGGER.debug("exiting notification thread")
 
     authenticate(pi)
-    pi["device"].subscribe(LAST_DATA_UUID, callback=plejd_handler_cb, indication=True)
+    # the notification handle is last_data + 2
+    pi["device"].writeCharacteristic(pi["handles"]["last_data"] + 2, b'\x02\x00')
+    pi["device"].withDelegate(PlejdDelegate())
+    pi["thread"] = PlejdNotificationThread()
+    pi["thread"].start()
+
+    _LOGGER.debug("all plejd setup completed")
 
 def disconnect(plejdinfo):
-    if "adapter" in plejdinfo:
-        plejdinfo["adapter"].stop()
+    if "thread" in plejdinfo:
+        plejdinfo["thread"].stop()
+        del plejdinfo["thread"]
+    if "device" in plejdinfo:
+        plejdinfo["device"].disconnect()
+        del plejdinfo["device"]
 
 def plejd_chalresp(key, chal):
     k = int.from_bytes(key, 'big')
@@ -208,42 +257,35 @@ def plejd_enc_dec(key, addr, data):
     return output
 
 def plejd_ping(pi):
+    handle = pi["handles"]["ping"]
     ping = os.urandom(1)
-    plejd_write(pi, PING_UUID, ping)
-    pong = pi["device"].char_read(PING_UUID)
+    pi["device"].writeCharacteristic(handle, ping, True)
+    plejd_write(pi, handle, ping, True)
+    pi["device"].readCharacteristic(handle)
     if((ping[0] + 1) & 0xff != pong[0]):
         return False
     return True
 
-def authenticate(i):
-    i["device"].char_write(AUTH_UUID, b'\x00')
-    resp = plejd_chalresp(i["key"], i["device"].char_read(AUTH_UUID))
-    i["device"].char_write(AUTH_UUID, resp)
+def authenticate(pi):
+    handle = pi["handles"]["auth"]
+    pi["device"].writeCharacteristic(handle, b'\x00', True)
+    resp = plejd_chalresp(pi["key"], pi["device"].readCharacteristic(handle))
+    pi["device"].writeCharacteristic(handle, resp, False)
     return True
 
-def plejd_write(pi, uuid, data):
+def plejd_write(pi, handle, data, wait=False):
     try:
-        pi["device"].char_write(uuid, data)
-    except pygatt.exceptions.NotificationTimeout as e:
-        _LOGGER.warning("Write timed-out")
+        pi["device"].writeCharacteristic(handle, data, wait)
+    except (BTLEException,BTLEDisconnectError,BTLEInternalError) as e:
+        _LOGGER.warning("Write failed: '%s'" % (e))
         connect(pi)
-        pi["device"].char_write(uuid, data)
+        pi["device"].writeCharacteristic(handle, data, wait)
 
 def setup_platform(hass, config, add_entities, discovery_info=None):
     cryptokey = binascii.a2b_hex(config.get(CONF_CRYPTO_KEY))
     plejdinfo = {"key": cryptokey}
 
     hass.data[DATA_PLEJD] = plejdinfo
-
-    # pygatt assumes the notification handle is +1, plejd has +2,
-    #  thus we monkey-patch that function here to get the right handle
-    #  for notifications
-    def plejd_notification_handles(self, uuid):
-        value_handle = self.get_handle(uuid)
-        characteristic_config_handle = value_handle + 2
-        return value_handle, characteristic_config_handle
-
-    pygatt.BLEDevice._notification_handles = plejd_notification_handles
 
     def _ping(now):
         pi = hass.data[DATA_PLEJD]
@@ -258,7 +300,7 @@ def setup_platform(hass, config, add_entities, discovery_info=None):
     hass.bus.listen_once(EVENT_HOMEASSISTANT_START, _start_plejd)
 
     def _shutdown_plejd(event):
-        plejdinfo["adapter"].stop()
+        disconnect(plejdinfo)
 
     hass.bus.listen_once(EVENT_HOMEASSISTANT_STOP, _shutdown_plejd)
 
