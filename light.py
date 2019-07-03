@@ -261,9 +261,10 @@ def plejd_ping(pi):
     ping = os.urandom(1)
     pi["device"].writeCharacteristic(handle, ping, True)
     plejd_write(pi, handle, ping, True)
-    pi["device"].readCharacteristic(handle)
+    pong = pi["device"].readCharacteristic(handle)
     if((ping[0] + 1) & 0xff != pong[0]):
         return False
+    _Logger.debug("Succesfully pinged with %x" % (ping[0]))
     return True
 
 def authenticate(pi):
