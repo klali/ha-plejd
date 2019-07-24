@@ -21,7 +21,7 @@ custom\_components/plejd in your configuration.yaml add something like:
 light:
   - platform: plejd
     crypto_key: !secret plejd
-    device:
+    devices:
       11:
         name: bedroom
       13:
