@@ -53,9 +53,9 @@ $ dd if=backup.ab bs=1 skip=24 | python -c "import zlib,sys;sys.stdout.write(zli
 ```
 $ cat apps/com.plejd.plejdapp/f/*/*.site  | jq '.PlejdMesh.CryptoKey' | sed 's/-//g'
 ```
-5. Extract the inputAddresses:
+5. Extract the outputAddresses:
 ```
-$ cat apps/com.plejd.plejdapp/f/*/*.site  | jq '.PlejdMesh.inputAddresses' | grep -v '\$type' | jq '.[]."0", .[]."1"' | sort -u
+$ cat apps/com.plejd.plejdapp/f/*/*.site  | jq '.PlejdMesh.outputAdresses' | grep -v '\$type' | jq '.[][]'
 ```
 
 Steps 4 and 5 above can obviously be done manually instead of extracting the
