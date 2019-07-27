@@ -30,11 +30,6 @@ import sys
 from datetime import timedelta
 from threading import Thread
 
-from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
-from cryptography.hazmat.backends import default_backend
-
-from bluepy.btle import Scanner, DefaultDelegate, Peripheral, ADDR_TYPE_RANDOM, UUID, BTLEException, BTLEDisconnectError, BTLEInternalError
-
 CONF_CRYPTO_KEY = 'crypto_key'
 CONF_DEVICES = 'devices'
 CONF_NAME = 'name'
@@ -54,11 +49,11 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
         },
     })
 
-PLEJD_SERVICE = UUID("31ba0001-6085-4726-be45-040c957391b5")
-DATA_UUID = UUID("31ba0004-6085-4726-be45-040c957391b5")
-LAST_DATA_UUID = UUID("31ba0005-6085-4726-be45-040c957391b5")
-AUTH_UUID = UUID("31ba0009-6085-4726-be45-040c957391b5")
-PING_UUID = UUID("31ba000a-6085-4726-be45-040c957391b5")
+PLEJD_SERVICE = "31ba0001-6085-4726-be45-040c957391b5"
+DATA_UUID = "31ba0004-6085-4726-be45-040c957391b5"
+LAST_DATA_UUID = "31ba0005-6085-4726-be45-040c957391b5"
+AUTH_UUID = "31ba0009-6085-4726-be45-040c957391b5"
+PING_UUID = "31ba000a-6085-4726-be45-040c957391b5"
 
 class PlejdLight(Light):
     def __init__(self, name, identity):
@@ -118,6 +113,7 @@ class PlejdLight(Light):
         plejd_write(pi, pi["handles"]["data"], plejd_enc_dec(pi["key"], pi["address"], payload))
 
 def connect(pi):
+    from bluepy.btle import Scanner, DefaultDelegate, Peripheral, ADDR_TYPE_RANDOM, UUID, BTLEException
     device = None
     addr = None
 
@@ -135,7 +131,7 @@ def connect(pi):
                 if(adtype == 8 and value == "P mesh"):
                     try:
                         dev = Peripheral(d, addrType = ADDR_TYPE_RANDOM)
-                        if dev.getServiceByUUID(PLEJD_SERVICE):
+                        if dev.getServiceByUUID(UUID(PLEJD_SERVICE)):
                             device = dev
                         else:
                             dev.disconnect()
@@ -160,10 +156,10 @@ def connect(pi):
     pi["device"] = device
     pi["address"] = binascii.a2b_hex(device.addr.replace(':', ''))[::-1]
     pi["handles"] = {}
-    pi["handles"]["last_data"] = pi["device"].getCharacteristics(uuid=LAST_DATA_UUID)[0].getHandle()
-    pi["handles"]["auth"] = pi["device"].getCharacteristics(uuid=AUTH_UUID)[0].getHandle()
-    pi["handles"]["ping"] = pi["device"].getCharacteristics(uuid=PING_UUID)[0].getHandle()
-    pi["handles"]["data"] = pi["device"].getCharacteristics(uuid=DATA_UUID)[0].getHandle()
+    pi["handles"]["last_data"] = pi["device"].getCharacteristics(uuid=UUID(LAST_DATA_UUID))[0].getHandle()
+    pi["handles"]["auth"] = pi["device"].getCharacteristics(uuid=UUID(AUTH_UUID))[0].getHandle()
+    pi["handles"]["ping"] = pi["device"].getCharacteristics(uuid=UUID(PING_UUID))[0].getHandle()
+    pi["handles"]["data"] = pi["device"].getCharacteristics(uuid=UUID(DATA_UUID))[0].getHandle()
 
     class PlejdDelegate(DefaultDelegate):
         def handleNotification(self, handle, value):
@@ -244,6 +240,9 @@ def plejd_chalresp(key, chal):
     return resp
 
 def plejd_enc_dec(key, addr, data):
+    from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+    from cryptography.hazmat.backends import default_backend
+
     buf = bytearray(addr * 2)
     buf += addr[:4]
 
@@ -274,6 +273,7 @@ def authenticate(pi):
     return True
 
 def plejd_write(pi, handle, data, wait=False):
+    from bluepy.btle import BTLEException, BTLEDisconnectError, BTLEInternalError
     try:
         pi["device"].writeCharacteristic(handle, data, wait)
     except (BTLEException,BTLEDisconnectError,BTLEInternalError) as e:
