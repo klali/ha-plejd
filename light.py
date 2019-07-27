@@ -210,7 +210,6 @@ def connect(pi):
             _LOGGER.debug("starting notification thread")
             self.stopped = False
             while True:
-                _LOGGER.debug("Checking for notifications")
                 pi["device"].waitForNotifications(1)
                 if self.stopped:
                     break
