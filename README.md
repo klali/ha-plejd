@@ -15,8 +15,9 @@ It requires that you know the Plejd crypto key and the device ids.
 Make sure to have bluepy installed in your python environment. Bluepy comes
 with a helper called bluepy-helper, to allow scanning for devices this has
 to be given additional capabilities:
-
+```
 $ sudo setcap 'cap\_net\_raw,cap\_net\_admin+eip' /srv/homeassistant/lib/python3.5/site-packages/bluepy/bluepy-helper
+```
 
 Run this as a custom component, put the files light.py and \_\_init\_\_.py in
 custom\_components/plejd in your configuration.yaml add something like:
@@ -35,9 +36,6 @@ light:
       16:
         name: bathroom
 ```
-
-The rootless setup part of the [bluetooth\_le tracker](https://www.home-assistant.io/components/bluetooth_le_tracker/#rootless-setup)
-is interesting to get this working.
 
 ## Gathering information
 
