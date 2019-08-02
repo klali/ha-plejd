@@ -19,8 +19,9 @@ to be given additional capabilities:
 $ sudo setcap 'cap\_net\_raw,cap\_net\_admin+eip' /srv/homeassistant/lib/python3.5/site-packages/bluepy/bluepy-helper
 ```
 
-Run this as a custom component, put the files light.py and \_\_init\_\_.py in
-custom\_components/plejd in your configuration.yaml add something like:
+Run this as a custom component, put the files light.py, manifest.json and
+\_\_init\_\_.py in custom\_components/plejd in your configuration.yaml add
+something like:
 
 ```
 light:
