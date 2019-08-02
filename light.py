@@ -265,7 +265,7 @@ def plejd_ping(pi):
     pong = pi["device"].readCharacteristic(handle)
     if((ping[0] + 1) & 0xff != pong[0]):
         return False
-    _Logger.debug("Succesfully pinged with %x" % (ping[0]))
+    _LOGGER.debug("Succesfully pinged with %x" % (ping[0]))
     return True
 
 def authenticate(pi):
