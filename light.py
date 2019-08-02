@@ -75,7 +75,7 @@ class PlejdLight(Light):
 
     @property
     def assumed_state(self):
-        return True
+        return False
 
     @property
     def brightness(self):
@@ -109,7 +109,7 @@ class PlejdLight(Light):
         pi = self.hass.data[DATA_PLEJD]
 
         payload = binascii.a2b_hex("%02x0110009700" % (self._id))
-        _LOGGER.debug("turning off")
+        _LOGGER.debug("turning off %02x" % (self._id))
         plejd_write(pi, pi["handles"]["data"], plejd_enc_dec(pi["key"], pi["address"], payload))
 
 def connect(pi):
@@ -258,7 +258,6 @@ def plejd_ping(pi):
     handle = pi["handles"]["ping"]
     ping = os.urandom(1)
     pi["device"].writeCharacteristic(handle, ping, True)
-    plejd_write(pi, handle, ping, True)
     pong = pi["device"].readCharacteristic(handle)
     if((ping[0] + 1) & 0xff != pong[0]):
         return False
