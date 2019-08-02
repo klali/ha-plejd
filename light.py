@@ -203,10 +203,14 @@ def connect(pi):
         import time
 
         def run(self):
+            from bluepy.btle import BTLEInternalError
             _LOGGER.debug("starting notification thread")
             self.stopped = False
             while True:
-                pi["device"].waitForNotifications(1)
+                try:
+                    pi["device"].waitForNotifications(1)
+                except BTLEInternalError as e:
+                    _LOGGER.warning("Encountered bluepy internal error: '%s'" % (e))
                 if self.stopped:
                     break
 
