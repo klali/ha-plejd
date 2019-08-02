@@ -94,15 +94,15 @@ class PlejdLight(Light):
     def turn_on(self, **kwargs):
         brightness = kwargs.get(ATTR_BRIGHTNESS)
         if(brightness is None):
-            self._brightness = 0xffff
+            payload = binascii.a2b_hex("%02x0110009701" % (self._id))
         else:
             # since ha brightness is just one byte we shift it up and or it in to be able to get max val
             self._brightness = brightness << 8 | brightness
+            payload = binascii.a2b_hex("%02x0110009801%04x" % (self._id, self._brightness))
 
         pi = self.hass.data[DATA_PLEJD]
 
-        payload = binascii.a2b_hex("%02x0110009801%04x" % (self._id, self._brightness))
-        _LOGGER.debug("turning on")
+        _LOGGER.debug("turning on %02x with brigtness %02x" % (self._id, brightness or 0))
         plejd_write(pi, pi["handles"]["data"], plejd_enc_dec(pi["key"], pi["address"], payload))
 
     def turn_off(self, **kwargs):
