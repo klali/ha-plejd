@@ -75,7 +75,7 @@ class PlejdLight(Light):
 
     @property
     def assumed_state(self):
-        return False
+        return True
 
     @property
     def brightness(self):
