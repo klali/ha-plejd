@@ -86,7 +86,7 @@ class PlejdLight(Light):
         return SUPPORT_BRIGHTNESS
 
     def update_state(self, state, brightness=0xffff):
-        _LOGGER.debug("%s turned %r with brightness %04x" % (self._name, state, brightness))
+        _LOGGER.debug("%s(%02x) turned %r with brightness %04x" % (self._name, self._id, state, brightness))
         self._state = state
         self._brightness = brightness
         self.schedule_update_ha_state()
@@ -102,14 +102,14 @@ class PlejdLight(Light):
 
         pi = self.hass.data[DATA_PLEJD]
 
-        _LOGGER.debug("turning on %02x with brigtness %02x" % (self._id, brightness or 0))
+        _LOGGER.debug("turning on %s(%02x) with brigtness %02x" % (self._name, self._id, brightness or 0))
         plejd_write(pi, pi["handles"]["data"], plejd_enc_dec(pi["key"], pi["address"], payload))
 
     def turn_off(self, **kwargs):
         pi = self.hass.data[DATA_PLEJD]
 
         payload = binascii.a2b_hex("%02x0110009700" % (self._id))
-        _LOGGER.debug("turning off %02x" % (self._id))
+        _LOGGER.debug("turning off %s(%02x)" % (self._name, self._id))
         plejd_write(pi, pi["handles"]["data"], plejd_enc_dec(pi["key"], pi["address"], payload))
 
 def connect(pi):
