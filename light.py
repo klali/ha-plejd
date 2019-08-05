@@ -259,10 +259,15 @@ def plejd_enc_dec(key, addr, data):
     return output
 
 def plejd_ping(pi):
+    from bluepy.btle import BTLEException, BTLEDisconnectError, BTLEInternalError
     handle = pi["handles"]["ping"]
     ping = os.urandom(1)
-    pi["device"].writeCharacteristic(handle, ping, True)
-    pong = pi["device"].readCharacteristic(handle)
+    try:
+        pi["device"].writeCharacteristic(handle, ping, True)
+        pong = pi["device"].readCharacteristic(handle)
+    except (BTLEException,BTLEDisconnectError,BTLEInternalError) as e:
+        _LOGGER.warning("read/write failed in ping: '%s'" % (e))
+        return False
     if((ping[0] + 1) & 0xff != pong[0]):
         return False
     _LOGGER.debug("Succesfully pinged with %x" % (ping[0]))
