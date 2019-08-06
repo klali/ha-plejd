@@ -93,8 +93,8 @@ light:
 
 ### HASS.IO Docker container
 
-hass.io default installation script will map /usr/share/hassio/homeassistant to the /config directory inside the docker container.
-create a custom\_components directory if it doesn't exist (it doesn't by default)
+Hass.io default installation script will map /usr/share/hassio/homeassistant to the /config directory inside the docker container.
+create a custom\_components directory if it doesn't exist (it doesn't by default).
 ```
 mkdir -p /usr/share/hassio/homeassistant/custom_components
 ```
@@ -120,6 +120,8 @@ light:
         name: bathroom
 
 ```
+Last step is to restart homeassistant service, in the homeassistant web ui, go to Configuration -> General -> Server management and hit restart.
+
 
 ## License
 
