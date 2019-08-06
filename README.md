@@ -94,17 +94,17 @@ light:
 ### HASS.IO Docker container
 
 hass.io default installation script will map /usr/share/hassio/homeassistant to the /config directory inside the docker container.
-create a custom\_components directory if it doesnt exist (it doesnt by default)
+create a custom\_components directory if it doesn't exist (it doesn't by default)
 ```
 mkdir -p /usr/share/hassio/homeassistant/custom_components
 ```
-checkout the git repo and rename folder
+Checkout the git repo and rename folder
 ```
 cd /usr/share/hassio/homeassistant/custom_components
 git checkout https://github.com/klali/ha-plejd.git
 mv ha-plejd plejd
 ```
-update your configuration.yaml file
+Update your configuration.yaml file
 ```
 light:
   - platform: plejd
