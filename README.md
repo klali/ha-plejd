@@ -6,9 +6,9 @@ bluetooth le protocol.
 ## Getting started
 
 ## Tested platforms
- This component has been tested on the following platforms:
- Raspberry pi 3b+ running hassbian (Bluetooth 4.2 Cypress CYW43455 chip)
- Intel NUC NUC7i7BNH (Bluetooth 4.2 Intel 8265) running ESXi 6.7 and linux guest
+This component has been tested on the following platforms:
+ - Raspberry pi 3b+ running hassbian (Bluetooth 4.2 Cypress CYW43455 chip)
+ - Intel NUC NUC7i7BNH (Bluetooth 4.2 Intel 8265) running ESXi 6.7 and linux guest
 
 ## Requirements
 * A bluetooth adapter that supports Bluetooth Low Energy (BLE)
