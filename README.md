@@ -5,12 +5,65 @@ bluetooth le protocol.
 
 ## Getting started
 
-This has only been tested on a raspberry pi 3b+ running hassbian, it has to
-run on a device with a bluetooth le module.
+## Tested platforms
+This component has been tested on the following platforms:
+Raspberry pi 3b+ running hassbian (Bluetooth 4.2 Cypress CYW43455 chip)
+Intel NUC NUC7i7BNH (Bluetooth 4.2 Intel 8265) running ESXi 6.7 and linux guest
 
-It requires that you know the Plejd crypto key and the device ids.
+## Requirements
+* A bluetooth adapter that supports Bluetooth Low Energy (BLE)
+* Obtaining the Plejd crypto key and the device ids.
 
-## Installing
+## Gathering crypto and device information
+
+Obtaining the crypto key and the device ids is a crucial step to get this
+running, for this it is required to get the .site json file from the plejd app
+on android or iOS.
+
+### Steps for android:
+
+1. Turn on USB debugging and connect the phone to a computer.
+2. Extract a backup from the phone:
+```
+$ adb backup com.plejd.plejdapp
+```
+3. Unpack the backup:
+```
+$ dd if=backup.ab bs=1 skip=24 | python -c "import zlib,sys;sys.stdout.write(zlib.decompress(sys.stdin.read()))" | tar -xv
+```
+4. Recover the .site file:
+```
+$ cp apps/com.plejd.plejdapp/f/*/*.site site.json
+```
+
+### Steps for iOS:
+
+1. Open a backup in iBackup viewer.
+2. Select raw files, look for AppDomainGroup-group.com.plejd.consumer.light.
+3. In AppDomainGroup-group.com.plejd.consumer.light/Documents there should be two folders.
+4. The folder that isn't named ".config" contains the .site file.
+
+### Gather cryto key and ids for devices
+
+When the site.json file has been recovered the cryptokey and the output
+addresses can be extracted:
+
+1. Extract the cryptoKey:
+```
+$ cat site.json | jq '.PlejdMesh.CryptoKey' | sed 's/-//g'
+```
+2. Extract the outputAddresses:
+```
+$ cat site.json  | jq '.PlejdMesh.outputAdresses' | grep -v '\$type' | jq '.[][]'
+```
+
+These steps can obviously be done manually instead of extracting the fields
+using jq and shell tricks.
+
+
+## Installing component
+
+### Hassbian:
 
 Make sure to have bluepy installed in your python environment. Bluepy comes
 with a helper called bluepy-helper, to allow scanning for devices this has
@@ -38,50 +91,35 @@ light:
         name: bathroom
 ```
 
-## Gathering information
+### HASS.IO Docker container
 
-Obtaining the crypto key and the device ids is a crucial step to get this
-running, for this it is required to get the .site json file from the plejd app
-on android or iOS.
+hass.io default installation script will map /usr/share/hassio/homeassistant to the /config directory inside the docker container.
+create a custom\_components directory if it doesnt exist (it doesnt by default)
+```
+mkdir -p /usr/share/hassio/homeassistant/custom_components
+```
+checkout the git repo and rename folder
+```
+cd /usr/share/hassio/homeassistant/custom_components
+git checkout https://github.com/klali/ha-plejd.git
+mv ha-plejd plejd
+```
+update your configuration.yaml file
+```
+light:
+  - platform: plejd
+    crypto_key: !secret plejd
+    devices:
+      11:
+        name: bedroom
+      13:
+        name: kitchen_1
+      14:
+        name: kitchen_2
+      16:
+        name: bathroom
 
-Steps for android:
-
-1. Turn on USB debugging and connect the phone to a computer.
-2. Extract a backup from the phone:
 ```
-$ adb backup com.plejd.plejdapp
-```
-3. Unpack the backup:
-```
-$ dd if=backup.ab bs=1 skip=24 | python -c "import zlib,sys;sys.stdout.write(zlib.decompress(sys.stdin.read()))" | tar -xv
-```
-4. Recover the .site file:
-```
-$ cp apps/com.plejd.plejdapp/f/*/*.site site.json
-```
-
-Steps for iOS:
-
-1. Open a backup in iBackup viewer.
-2. Select raw files, look for AppDomainGroup-group.com.plejd.consumer.light.
-3. In AppDomainGroup-group.com.plejd.consumer.light/Documents there should be two folders.
-4. The folder that isn't named ".config" contains the .site file.
-
-
-When the site.json file has been recovered the cryptokey and the output
-addresses can be extracted:
-
-1. Extract the cryptoKey:
-```
-$ cat site.json | jq '.PlejdMesh.CryptoKey' | sed 's/-//g'
-```
-2. Extract the outputAddresses:
-```
-$ cat site.json  | jq '.PlejdMesh.outputAdresses' | grep -v '\$type' | jq '.[][]'
-```
-
-These steps can obviously be done manually instead of extracting the fields
-using jq and shell tricks.
 
 ## License
 
