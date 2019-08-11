@@ -92,6 +92,11 @@ class PlejdLight(Light):
         self.schedule_update_ha_state()
 
     def turn_on(self, **kwargs):
+        pi = self.hass.data[DATA_PLEJD]
+        if "handles" not in pi:
+            _LOGGER.warning("Tried to turn on light when plejd is not connected")
+            return
+
         brightness = kwargs.get(ATTR_BRIGHTNESS)
         if(brightness is None):
             payload = binascii.a2b_hex("%02x0110009701" % (self._id))
@@ -100,13 +105,14 @@ class PlejdLight(Light):
             self._brightness = brightness << 8 | brightness
             payload = binascii.a2b_hex("%02x0110009801%04x" % (self._id, self._brightness))
 
-        pi = self.hass.data[DATA_PLEJD]
-
         _LOGGER.debug("turning on %s(%02x) with brigtness %02x" % (self._name, self._id, brightness or 0))
         plejd_write(pi, pi["handles"]["data"], plejd_enc_dec(pi["key"], pi["address"], payload))
 
     def turn_off(self, **kwargs):
         pi = self.hass.data[DATA_PLEJD]
+        if "handles" not in pi:
+            _LOGGER.warning("Tried to turn off light when plejd is not connected")
+            return
 
         payload = binascii.a2b_hex("%02x0110009700" % (self._id))
         _LOGGER.debug("turning off %s(%02x)" % (self._name, self._id))
