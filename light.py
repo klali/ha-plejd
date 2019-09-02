@@ -187,7 +187,7 @@ def connect(pi):
                     # 0097 is state only
                     state = dec[5]
                 else:
-                    _LOGGER.debug("no match for command '%s' (%s)" % (binascii.b2a_hex(dec[3:5], dec)))
+                    _LOGGER.debug("no match for command '%s' (%s)" % (binascii.b2a_hex(dec[3:5]), dec))
                     return
                 if(state == 0):
                     state = False
