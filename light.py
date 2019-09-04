@@ -175,7 +175,7 @@ def connect(pi):
                 if dec[0] in PLEJD_DEVICES:
                     device = PLEJD_DEVICES[dec[0]]
                 else:
-                    _LOGGER.debug("no match for device '%d' (%s)" % (dec[0], binascii.b2a_hex(dec)))
+                    _LOGGER.debug("no match for device '%02x' (%s)" % (dec[0], binascii.b2a_hex(dec)))
                     return
                 dim = 0xffff
                 state = None
@@ -187,7 +187,7 @@ def connect(pi):
                     # 0097 is state only
                     state = dec[5]
                 else:
-                    _LOGGER.debug("no match for command '%s' (%s)" % (binascii.b2a_hex(dec[3:5]), dec))
+                    _LOGGER.debug("no match for command '%s' (%s)" % (binascii.b2a_hex(dec[3:5]), binascii.b2a_hex(dec)))
                     return
                 if(state == 0):
                     state = False
