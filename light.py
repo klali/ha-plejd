@@ -79,7 +79,10 @@ class PlejdLight(Light):
 
     @property
     def brightness(self):
-        return self._brightness >> 8
+        if self._brightness:
+            return self._brightness >> 8
+        else:
+            return None
 
     @property
     def supported_features(self):
@@ -87,8 +90,8 @@ class PlejdLight(Light):
 
     def update_state(self, state, brightness=None):
         self._state = state
+        self._brightness = brightness
         if brightness:
-            self._brightness = brightness
             _LOGGER.debug("%s(%02x) turned %r with brightness %04x" % (self._name, self._id, state, brightness))
         else:
             _LOGGER.debug("%s(%02x) turned %r" % (self._name, self._id, state, brightness))
@@ -102,6 +105,7 @@ class PlejdLight(Light):
 
         brightness = kwargs.get(ATTR_BRIGHTNESS)
         if(brightness is None):
+            self._brightness = None
             payload = binascii.a2b_hex("%02x0110009701" % (self._id))
         else:
             # since ha brightness is just one byte we shift it up and or it in to be able to get max val
