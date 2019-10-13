@@ -85,10 +85,13 @@ class PlejdLight(Light):
     def supported_features(self):
         return SUPPORT_BRIGHTNESS
 
-    def update_state(self, state, brightness=0xffff):
-        _LOGGER.debug("%s(%02x) turned %r with brightness %04x" % (self._name, self._id, state, brightness))
+    def update_state(self, state, brightness=None):
         self._state = state
-        self._brightness = brightness
+        if brightness:
+            self._brightness = brightness
+            _LOGGER.debug("%s(%02x) turned %r with brightness %04x" % (self._name, self._id, state, brightness))
+        else:
+            _LOGGER.debug("%s(%02x) turned %r" % (self._name, self._id, state, brightness))
         self.schedule_update_ha_state()
 
     def turn_on(self, **kwargs):
@@ -177,7 +180,7 @@ def connect(pi):
                 else:
                     _LOGGER.debug("no match for device '%02x' (%s)" % (dec[0], binascii.b2a_hex(dec)))
                     return
-                dim = 0xffff
+                dim = None
                 state = None
                 if dec[3:5] == b'\x00\xc8' or dec[3:5] == b'\x00\x98':
                     # 00c8 and 0098 both mean state+dim
