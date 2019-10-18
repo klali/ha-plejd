@@ -27,7 +27,7 @@ import hashlib
 import os
 import struct
 import sys
-from datetime import timedelta
+from datetime import timedelta, datetime
 from threading import Thread
 
 CONF_CRYPTO_KEY = 'crypto_key'
@@ -181,6 +181,10 @@ def connect(pi):
                 # check if this is a device we care about
                 if dec[0] in PLEJD_DEVICES:
                     device = PLEJD_DEVICES[dec[0]]
+                elif dec[0] == 0x01 and dec[3:5] == b'\x00\x1b':
+                    time = struct.unpack_from('<I', dec, 5)[0]
+                    _LOGGER.debug("plejd network reports time as '%s'", datetime.fromtimestamp(time))
+                    return
                 else:
                     _LOGGER.debug("no match for device '%02x' (%s)" % (dec[0], binascii.b2a_hex(dec)))
                     return
