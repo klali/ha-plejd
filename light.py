@@ -94,7 +94,7 @@ class PlejdLight(Light):
         if brightness:
             _LOGGER.debug("%s(%02x) turned %r with brightness %04x" % (self._name, self._id, state, brightness))
         else:
-            _LOGGER.debug("%s(%02x) turned %r" % (self._name, self._id, state, brightness))
+            _LOGGER.debug("%s(%02x) turned %r" % (self._name, self._id, state))
         self.schedule_update_ha_state()
 
     def turn_on(self, **kwargs):
