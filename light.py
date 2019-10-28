@@ -307,7 +307,7 @@ def plejd_write(pi, handle, data, wait=False):
         pi["device"].writeCharacteristic(handle, data, wait)
 
 def setup_platform(hass, config, add_entities, discovery_info=None):
-    cryptokey = binascii.a2b_hex(config.get(CONF_CRYPTO_KEY))
+    cryptokey = binascii.a2b_hex(config.get(CONF_CRYPTO_KEY).replace('-', ''))
     plejdinfo = {"key": cryptokey}
 
     hass.data[DATA_PLEJD] = plejdinfo
