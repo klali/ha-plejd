@@ -122,6 +122,15 @@ light:
 ```
 Last step is to restart homeassistant service, in the homeassistant web ui, go to Configuration -> General -> Server management and hit restart.
 
+## Troubleshooting
+
+Generally it is helpful to turn on debug logging for the component for any type of troubleshooting, this will show what the component receives and interprets from the plejd network. To do this add something like the following to your configuration:
+```
+logger:
+  logs:
+    custom_components.plejd: debug
+```
+
 
 ## License
 
