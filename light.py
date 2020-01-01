@@ -22,8 +22,8 @@ from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.event import track_point_in_utc_time
 import homeassistant.util.dt as dt_util
 
+import re
 import binascii
-import hashlib
 import os
 import struct
 import sys
@@ -49,11 +49,21 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
         },
     })
 
+BLUEZ_SERVICE_NAME = 'org.bluez'
+DBUS_OM_IFACE =      'org.freedesktop.DBus.ObjectManager'
+DBUS_PROP_IFACE =    'org.freedesktop.DBus.Properties'
+
+BLUEZ_ADAPTER_IFACE = 'org.bluez.Adapter1'
+BLUEZ_DEVICE_IFACE = 'org.bluez.Device1'
+GATT_SERVICE_IFACE = 'org.bluez.GattService1'
+GATT_CHRC_IFACE =    'org.bluez.GattCharacteristic1'
+
+PLEJD_SVC_UUID =     '31ba0001-6085-4726-be45-040c957391b5'
+PLEJD_DATA_UUID =    '31ba0004-6085-4726-be45-040c957391b5'
+PLEJD_LAST_DATA_UUID = '31ba0005-6085-4726-be45-040c957391b5'
+PLEJD_AUTH_UUID =    '31ba0009-6085-4726-be45-040c957391b5'
+PLEJD_PING_UUID =    '31ba000a-6085-4726-be45-040c957391b5'
 PLEJD_SERVICE = "31ba0001-6085-4726-be45-040c957391b5"
-DATA_UUID = "31ba0004-6085-4726-be45-040c957391b5"
-LAST_DATA_UUID = "31ba0005-6085-4726-be45-040c957391b5"
-AUTH_UUID = "31ba0009-6085-4726-be45-040c957391b5"
-PING_UUID = "31ba000a-6085-4726-be45-040c957391b5"
 
 class PlejdLight(Light):
     def __init__(self, name, identity):
@@ -99,7 +109,7 @@ class PlejdLight(Light):
 
     def turn_on(self, **kwargs):
         pi = self.hass.data[DATA_PLEJD]
-        if "handles" not in pi:
+        if "characteristics" not in pi:
             _LOGGER.warning("Tried to turn on light when plejd is not connected")
             return
 
@@ -113,99 +123,187 @@ class PlejdLight(Light):
             payload = binascii.a2b_hex("%02x0110009801%04x" % (self._id, self._brightness))
 
         _LOGGER.debug("turning on %s(%02x) with brigtness %02x" % (self._name, self._id, brightness or 0))
-        plejd_write(pi, pi["handles"]["data"], plejd_enc_dec(pi["key"], pi["address"], payload))
+        plejd_write(pi, pi["characteristics"]["data"], plejd_enc_dec(pi["key"], pi["address"], payload))
 
     def turn_off(self, **kwargs):
         pi = self.hass.data[DATA_PLEJD]
-        if "handles" not in pi:
+        if "characteristics" not in pi:
             _LOGGER.warning("Tried to turn off light when plejd is not connected")
             return
 
         payload = binascii.a2b_hex("%02x0110009700" % (self._id))
         _LOGGER.debug("turning off %s(%02x)" % (self._name, self._id))
-        plejd_write(pi, pi["handles"]["data"], plejd_enc_dec(pi["key"], pi["address"], payload))
+        plejd_write(pi, pi["characteristics"]["data"], plejd_enc_dec(pi["key"], pi["address"], payload))
 
 def connect(pi):
-    from bluepy.btle import Scanner, DefaultDelegate, Peripheral, ADDR_TYPE_RANDOM, UUID, BTLEException
-    device = None
-    addr = None
+    import dbus
+    from gi.repository import GLib
+    from dbus.mainloop.glib import DBusGMainLoop
 
-    _LOGGER.debug("Starting plejd connection")
+    GLib.threads_init()
+    dbus.mainloop.glib.threads_init()
 
-    disconnect(pi)
+    DBusGMainLoop(set_as_default=True)
+    bus = dbus.SystemBus()
+    mainloop = GLib.MainLoop()
+    om = dbus.Interface(bus.get_object(BLUEZ_SERVICE_NAME, '/'), DBUS_OM_IFACE)
 
-    scanner = Scanner()
+    plejds = []
+    adapter = None
 
-    for i in range(1, 10):
-        devs = sorted(list(scanner.scan(1)), key=lambda d: d.rssi)[::-1]
+    for path, interfaces in om.GetManagedObjects().items():
+        if BLUEZ_ADAPTER_IFACE not in interfaces.keys():
+            continue
+        obj = bus.get_object(BLUEZ_SERVICE_NAME, path)
+        adapter = dbus.Interface(obj, BLUEZ_ADAPTER_IFACE)
 
-        for d in devs:
-            for (adtype, desc, value) in d.getScanData():
-                if(adtype == 8 and value == "P mesh"):
-                    try:
-                        dev = Peripheral(d, addrType = ADDR_TYPE_RANDOM)
-                        if dev.getServiceByUUID(UUID(PLEJD_SERVICE)):
-                            device = dev
-                        else:
-                            dev.disconnect()
+    for path, interfaces in om.GetManagedObjects().items():
+        if BLUEZ_DEVICE_IFACE not in interfaces.keys():
+            continue
+        obj = bus.get_object(BLUEZ_SERVICE_NAME, path)
+        obj_props = obj.GetAll(BLUEZ_DEVICE_IFACE, dbus_interface=DBUS_PROP_IFACE)
+        if obj_props["Alias"].startswith("P mesh"):
+            if obj_props["Connected"]:
+                _LOGGER.debug("Disconnecting %s" % (path))
+                dbus.Interface(obj, BLUEZ_DEVICE_IFACE).Disconnect()
+            adapter.RemoveDevice(obj)
 
-                        break
-                    except BTLEException as e:
-                        _LOGGER.warning("failed connecting to device '%s' : '%s'" % (d.addr, e))
-            if device:
-                break
+    def interfaces_added_cb(object_path, interfaces):
+        if BLUEZ_DEVICE_IFACE not in interfaces.keys():
+            return
+        obj = bus.get_object(BLUEZ_SERVICE_NAME, object_path)
+        obj_props = obj.GetAll(BLUEZ_DEVICE_IFACE, dbus_interface=DBUS_PROP_IFACE)
+        if obj_props["Alias"].startswith("P mesh"):
+            _LOGGER.debug("Discovered %s with RSSI %d" % (object_path, obj_props["RSSI"]))
+            plejds.append((obj, int(obj_props["RSSI"]), object_path))
 
-        if device is None:
-            _LOGGER.warning("no device found on iteration %d" % (i))
-        else:
-            break
+    def timeout_discovery():
+        mainloop.quit()
 
-    if device == None:
-        _LOGGER.warning("Failed to find a Plejd device to connect to")
+    om.connect_to_signal('InterfacesAdded', interfaces_added_cb)
+
+    scan_filter = {
+            "UUIDs": [PLEJD_SVC_UUID],
+            "Transport": "le",
+            }
+    adapter.SetDiscoveryFilter(scan_filter)
+    adapter.StartDiscovery()
+
+    timer = GLib.timeout_add_seconds(2, timeout_discovery)
+    mainloop.run()
+
+    if len(plejds) == 0:
+        _LOGGER.warning("No plejds discovered")
         return
 
-    _LOGGER.debug("Connected to Plejd device '%s'" % (device.addr))
+    plejds.sort(key = lambda a: a[1], reverse = True)
+    _LOGGER.info("Connecting %s" % (plejds[0][2]))
+    dbus.Interface(plejds[0][0], BLUEZ_DEVICE_IFACE).Connect()
 
-    pi["device"] = device
-    pi["address"] = binascii.a2b_hex(device.addr.replace(':', ''))[::-1]
-    pi["handles"] = {}
-    pi["handles"]["last_data"] = pi["device"].getCharacteristics(uuid=UUID(LAST_DATA_UUID))[0].getHandle()
-    pi["handles"]["auth"] = pi["device"].getCharacteristics(uuid=UUID(AUTH_UUID))[0].getHandle()
-    pi["handles"]["ping"] = pi["device"].getCharacteristics(uuid=UUID(PING_UUID))[0].getHandle()
-    pi["handles"]["data"] = pi["device"].getCharacteristics(uuid=UUID(DATA_UUID))[0].getHandle()
+    timer = GLib.timeout_add_seconds(2, timeout_discovery)
+    mainloop.run()
 
-    class PlejdDelegate(DefaultDelegate):
-        def handleNotification(self, handle, value):
-            if handle == pi["handles"]["last_data"]:
-                dec = plejd_enc_dec(pi["key"], pi["address"], value)
-                # check if this is a device we care about
-                if dec[0] in PLEJD_DEVICES:
-                    device = PLEJD_DEVICES[dec[0]]
-                elif dec[0] == 0x01 and dec[3:5] == b'\x00\x1b':
-                    time = struct.unpack_from('<I', dec, 5)[0]
-                    _LOGGER.debug("plejd network reports time as '%s'", datetime.fromtimestamp(time))
-                    return
-                else:
-                    _LOGGER.debug("no match for device '%02x' (%s)" % (dec[0], binascii.b2a_hex(dec)))
-                    return
-                dim = None
-                state = None
-                if dec[3:5] == b'\x00\xc8' or dec[3:5] == b'\x00\x98':
-                    # 00c8 and 0098 both mean state+dim
-                    state = dec[5]
-                    dim = int.from_bytes(dec[6:8], 'little')
-                elif dec[3:5] == b'\x00\x97':
-                    # 0097 is state only
-                    state = dec[5]
-                else:
-                    _LOGGER.debug("no match for command '%s' (%s)" % (binascii.b2a_hex(dec[3:5]), binascii.b2a_hex(dec)))
-                    return
-                if(state == 0):
-                    state = False
-                else:
-                    state = True
+    objects = om.GetManagedObjects()
+    chrcs = []
 
-                device.update_state(state, dim)
+    # List characteristics found
+    for path, interfaces in objects.items():
+        if GATT_CHRC_IFACE not in interfaces.keys():
+            continue
+        chrcs.append(path)
+
+    def process_plejd_service(service_path, chrc_paths, bus):
+        service = bus.get_object(BLUEZ_SERVICE_NAME, service_path)
+        service_props = service.GetAll(GATT_SERVICE_IFACE,
+                                       dbus_interface=DBUS_PROP_IFACE)
+
+        uuid = service_props['UUID']
+        if uuid != PLEJD_SVC_UUID:
+            return False
+
+        dev = service_props['Device']
+        x = re.search('dev_([0-9A-F_]+)$', dev)
+        addr = binascii.a2b_hex(x.group(1).replace("_", ""))[::-1]
+
+        chars = {}
+
+        # Process the characteristics.
+        for chrc_path in chrc_paths:
+            chrc = bus.get_object(BLUEZ_SERVICE_NAME, chrc_path)
+            chrc_props = chrc.GetAll(GATT_CHRC_IFACE,
+                                     dbus_interface=DBUS_PROP_IFACE)
+
+            uuid = chrc_props['UUID']
+
+            if uuid == PLEJD_DATA_UUID:
+                chars["data"] = (chrc, chrc_props)
+            elif uuid == PLEJD_LAST_DATA_UUID:
+                chars["last_data"] = (chrc, chrc_props)
+            elif uuid == PLEJD_AUTH_UUID:
+                chars["auth"] = (chrc, chrc_props)
+            elif uuid == PLEJD_PING_UUID:
+                chars["ping"] = (chrc, chrc_props)
+
+        return (addr, chars)
+
+    plejd_service = None
+    # List sevices found
+    for path, interfaces in objects.items():
+        if GATT_SERVICE_IFACE not in interfaces.keys():
+            continue
+
+        chrc_paths = [d for d in chrcs if d.startswith(path + "/")]
+
+        plejd_service = process_plejd_service(path, chrc_paths, bus)
+        if plejd_service:
+            break
+
+    if not plejd_service:
+        _LOGGER.warning("Failed connecting to PLEJD service")
+        return
+
+    pi["address"] = plejd_service[0]
+    pi["characteristics"] = plejd_service[1]
+    pi["loop"] = mainloop
+
+    def handle_notification_cb(iface, changed_props, invalidated_props):
+        if iface != GATT_CHRC_IFACE:
+            return
+        if not len(changed_props):
+            return
+        value = changed_props.get('Value', None)
+        if not value:
+            return
+        value = ''.join([chr(byte) for byte in value]).encode('latin1')
+        dec = plejd_enc_dec(pi["key"], pi["address"], value)
+        # check if this is a device we care about
+        if dec[0] in PLEJD_DEVICES:
+            device = PLEJD_DEVICES[dec[0]]
+        elif dec[0] == 0x01 and dec[3:5] == b'\x00\x1b':
+            time = struct.unpack_from('<I', dec, 5)[0]
+            _LOGGER.debug("plejd network reports time as '%s'", datetime.fromtimestamp(time))
+            return
+        else:
+            _LOGGER.debug("no match for device '%02x' (%s)" % (dec[0], binascii.b2a_hex(dec)))
+            return
+        dim = None
+        state = None
+        if dec[3:5] == b'\x00\xc8' or dec[3:5] == b'\x00\x98':
+            # 00c8 and 0098 both mean state+dim
+            state = dec[5]
+            dim = int.from_bytes(dec[6:8], 'little')
+        elif dec[3:5] == b'\x00\x97':
+            # 0097 is state only
+            state = dec[5]
+        else:
+            _LOGGER.debug("no match for command '%s' (%s)" % (binascii.b2a_hex(dec[3:5]), binascii.b2a_hex(dec)))
+            return
+        if(state == 0):
+            state = False
+        else:
+            state = True
+
+        device.update_state(state, dim)
 
     class PlejdNotificationThread(Thread):
         def __init__(self):
@@ -216,27 +314,28 @@ def connect(pi):
         def stop(self):
             _LOGGER.debug("stopping notification thread")
             self.stopped = True
-
-        import time
+            pi["loop"].quit()
 
         def run(self):
-            from bluepy.btle import BTLEInternalError
             _LOGGER.debug("starting notification thread")
             self.stopped = False
             while True:
-                try:
-                    pi["device"].waitForNotifications(1)
-                except BTLEInternalError as e:
-                    _LOGGER.warning("Encountered bluepy internal error: '%s'" % (e))
+                pi["loop"].run()
                 if self.stopped:
                     break
 
             _LOGGER.debug("exiting notification thread")
 
-    authenticate(pi)
-    # the notification handle is last_data + 2
-    pi["device"].writeCharacteristic(pi["handles"]["last_data"] + 2, b'\x02\x00')
-    pi["device"].withDelegate(PlejdDelegate())
+    plejd_auth(pi)
+    if plejd_ping(pi) == False:
+        return
+
+    plejd_last_data = pi["characteristics"]["last_data"][0]
+
+    last_data_iface = dbus.Interface(plejd_last_data, DBUS_PROP_IFACE)
+    last_data_iface.connect_to_signal("PropertiesChanged", handle_notification_cb)
+    plejd_last_data.StartNotify(dbus_interface=GATT_CHRC_IFACE)
+
     pi["thread"] = PlejdNotificationThread()
     pi["thread"].start()
 
@@ -246,11 +345,12 @@ def disconnect(plejdinfo):
     if "thread" in plejdinfo:
         plejdinfo["thread"].stop()
         del plejdinfo["thread"]
-    if "device" in plejdinfo:
-        plejdinfo["device"].disconnect()
-        del plejdinfo["device"]
+    if "loop" in plejdinfo:
+        plejdinfo["loop"].quit()
+        del plejdinfo["loop"]
 
 def plejd_chalresp(key, chal):
+    import hashlib
     k = int.from_bytes(key, 'big')
     c = int.from_bytes(chal, 'big')
 
@@ -276,31 +376,59 @@ def plejd_enc_dec(key, addr, data):
     return output
 
 def plejd_ping(pi):
-    from bluepy.btle import BTLEException, BTLEDisconnectError, BTLEInternalError
-    handle = pi["handles"]["ping"]
     ping = os.urandom(1)
-    try:
-        pi["device"].writeCharacteristic(handle, ping, True)
-        pong = pi["device"].readCharacteristic(handle)
-    except (BTLEException,BTLEDisconnectError,BTLEInternalError) as e:
-        _LOGGER.warning("read/write failed in ping: '%s'" % (e))
-        return False
+    char = pi["characteristics"]["ping"][0]
+    pong = []
+
+    def plejd_ping_cb(value):
+        pong.append(value[0])
+        pi["loop"].quit()
+
+    def plejd_ping_start_cb():
+        char.ReadValue([], reply_handler=plejd_ping_cb,
+                error_handler=generic_error_cb,
+                dbus_interface=GATT_CHRC_IFACE)
+
+    char.WriteValue([ping[0]], {}, reply_handler=plejd_ping_start_cb,
+            error_handler=generic_error_cb,
+            dbus_interface=GATT_CHRC_IFACE)
+
+    pi["loop"].run()
+
     if((ping[0] + 1) & 0xff != pong[0]):
+        _LOGGER.warning("PLEJD ping failed %02x - %02x" % (ping[0], pong[0]))
         return False
-    _LOGGER.debug("Succesfully pinged with %x" % (ping[0]))
+
+    _LOGGER.debug("Successfully pinged with %02x" % (ping[0]))
     return True
 
-def authenticate(pi):
-    handle = pi["handles"]["auth"]
-    pi["device"].writeCharacteristic(handle, b'\x00', True)
-    resp = plejd_chalresp(pi["key"], pi["device"].readCharacteristic(handle))
-    pi["device"].writeCharacteristic(handle, resp, False)
-    return True
+def plejd_auth(pi):
+    char = pi["characteristics"]["auth"][0]
+    def plejd_auth_finish_cb():
+        _LOGGER.debug("PLEJD authentication finished")
+        pi["loop"].quit()
 
-def plejd_write(pi, handle, data, wait=False):
-    from bluepy.btle import BTLEException, BTLEDisconnectError, BTLEInternalError
+    def plejd_auth_cb(value):
+        chal = ''.join([chr(byte) for byte in value]).encode('latin1')
+        r = plejd_chalresp(pi["key"], chal)
+        char.WriteValue(r, {}, reply_handler=plejd_auth_finish_cb,
+                error_handler=generic_error_cb,
+                dbus_interface=GATT_CHRC_IFACE)
+
+    def plejd_auth_start_cb():
+        char.ReadValue([], reply_handler=plejd_auth_cb,
+                error_handler=generic_error_cb,
+                dbus_interface=GATT_CHRC_IFACE)
+
+    char.WriteValue([0], {}, reply_handler=plejd_auth_start_cb,
+            error_handler=generic_error_cb,
+            dbus_interface=GATT_CHRC_IFACE)
+
+    pi["loop"].run()
+
+def plejd_write(pi, char, data):
     try:
-        pi["device"].writeCharacteristic(handle, data, wait)
+        char[0].WriteValue(list(data), {}, dbus_interface=GATT_CHRC_IFACE)
     except (BTLEException,BTLEDisconnectError,BTLEInternalError) as e:
         _LOGGER.warning("Write failed: '%s'" % (e))
         connect(pi)
@@ -320,7 +448,8 @@ def setup_platform(hass, config, add_entities, discovery_info=None):
 
     def _start_plejd(event):
         connect(plejdinfo)
-        _ping(dt_util.utcnow())
+        # dbus and loops and threads and shit.
+        #_ping(dt_util.utcnow())
 
     hass.bus.listen_once(EVENT_HOMEASSISTANT_START, _start_plejd)
 
@@ -338,3 +467,6 @@ def setup_platform(hass, config, add_entities, discovery_info=None):
         devices.append(new)
 
     add_entities(devices)
+
+def generic_error_cb(error):
+    _LOGGER.error('D-Bus call failed: ' + str(error))
