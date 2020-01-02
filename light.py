@@ -264,7 +264,7 @@ def connect(pi):
             break
 
     if not plejd_service:
-        _LOGGER.warning("Failed connecting to PLEJD service")
+        _LOGGER.warning("Failed connecting to plejd service")
         return
 
     pi["address"] = plejd_service[0]
@@ -401,7 +401,7 @@ def plejd_ping(pi):
     pi["loop"].run()
 
     if((ping[0] + 1) & 0xff != pong[0]):
-        _LOGGER.warning("PLEJD ping failed %02x - %02x" % (ping[0], pong[0]))
+        _LOGGER.warning("plejd ping failed %02x - %02x" % (ping[0], pong[0]))
         return False
 
     _LOGGER.debug("Successfully pinged with %02x" % (ping[0]))
@@ -410,7 +410,7 @@ def plejd_ping(pi):
 def plejd_auth(pi):
     char = pi["characteristics"]["auth"][0]
     def plejd_auth_finish_cb():
-        _LOGGER.debug("PLEJD authentication finished")
+        _LOGGER.debug("plejd authentication finished")
         pi["loop"].quit()
 
     def plejd_auth_cb(value):
