@@ -448,8 +448,7 @@ def setup_platform(hass, config, add_entities, discovery_info=None):
 
     def _start_plejd(event):
         connect(plejdinfo)
-        # dbus and loops and threads and shit.
-        #_ping(dt_util.utcnow())
+        _ping(dt_util.utcnow())
 
     hass.bus.listen_once(EVENT_HOMEASSISTANT_START, _start_plejd)
 
