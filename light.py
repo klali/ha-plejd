@@ -156,6 +156,11 @@ def connect(pi):
             continue
         obj = bus.get_object(BLUEZ_SERVICE_NAME, path)
         adapter = dbus.Interface(obj, BLUEZ_ADAPTER_IFACE)
+        break
+
+    if not adapter:
+        _LOGGER.error("No bluetooth adapter localized")
+        return
 
     for path, interfaces in om.GetManagedObjects().items():
         if BLUEZ_DEVICE_IFACE not in interfaces.keys():
@@ -448,7 +453,8 @@ def setup_platform(hass, config, add_entities, discovery_info=None):
 
     def _start_plejd(event):
         connect(plejdinfo)
-        _ping(dt_util.utcnow())
+        if "thread" in plejdinfo:
+            _ping(dt_util.utcnow())
 
     hass.bus.listen_once(EVENT_HOMEASSISTANT_START, _start_plejd)
 
