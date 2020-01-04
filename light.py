@@ -123,7 +123,7 @@ class PlejdLight(Light):
             payload = binascii.a2b_hex("%02x0110009801%04x" % (self._id, self._brightness))
 
         _LOGGER.debug("turning on %s(%02x) with brigtness %02x" % (self._name, self._id, brightness or 0))
-        plejd_write(pi, pi["characteristics"]["data"], plejd_enc_dec(pi["key"], pi["address"], payload))
+        plejd_write(pi, payload)
 
     def turn_off(self, **kwargs):
         pi = self.hass.data[DATA_PLEJD]
@@ -133,7 +133,7 @@ class PlejdLight(Light):
 
         payload = binascii.a2b_hex("%02x0110009700" % (self._id))
         _LOGGER.debug("turning off %s(%02x)" % (self._name, self._id))
-        plejd_write(pi, pi["characteristics"]["data"], plejd_enc_dec(pi["key"], pi["address"], payload))
+        plejd_write(pi, payload)
 
 def connect(pi):
     import dbus
@@ -385,17 +385,21 @@ def plejd_ping(pi):
     char = pi["characteristics"]["ping"][0]
     pong = []
 
+    def plejd_ping_error_cb(error):
+        _LOGGER.warning("plejd ping errored: %s" % (str(error)))
+        pong.append(ping[0])
+
     def plejd_ping_cb(value):
         pong.append(value[0])
         pi["loop"].quit()
 
     def plejd_ping_start_cb():
         char.ReadValue([], reply_handler=plejd_ping_cb,
-                error_handler=generic_error_cb,
+                error_handler=plejd_ping_error_cb,
                 dbus_interface=GATT_CHRC_IFACE)
 
     char.WriteValue([ping[0]], {}, reply_handler=plejd_ping_start_cb,
-            error_handler=generic_error_cb,
+            error_handler=plejd_ping_error_cb,
             dbus_interface=GATT_CHRC_IFACE)
 
     pi["loop"].run()
@@ -409,6 +413,10 @@ def plejd_ping(pi):
 
 def plejd_auth(pi):
     char = pi["characteristics"]["auth"][0]
+
+    def plejd_auth_error_cb(error):
+        _LOGGER.warning("plejd authentication errored: %s" % (str(error)))
+
     def plejd_auth_finish_cb():
         _LOGGER.debug("plejd authentication finished")
         pi["loop"].quit()
@@ -417,27 +425,30 @@ def plejd_auth(pi):
         chal = ''.join([chr(byte) for byte in value]).encode('latin1')
         r = plejd_chalresp(pi["key"], chal)
         char.WriteValue(r, {}, reply_handler=plejd_auth_finish_cb,
-                error_handler=generic_error_cb,
+                error_handler=plejd_auth_error_cb,
                 dbus_interface=GATT_CHRC_IFACE)
 
     def plejd_auth_start_cb():
         char.ReadValue([], reply_handler=plejd_auth_cb,
-                error_handler=generic_error_cb,
+                error_handler=plejd_auth_error_cb,
                 dbus_interface=GATT_CHRC_IFACE)
 
     char.WriteValue([0], {}, reply_handler=plejd_auth_start_cb,
-            error_handler=generic_error_cb,
+            error_handler=plejd_auth_error_cb,
             dbus_interface=GATT_CHRC_IFACE)
 
     pi["loop"].run()
 
-def plejd_write(pi, char, data):
+def plejd_write(pi, payload):
+    from dbus.exceptions import DBusException
     try:
-        char[0].WriteValue(list(data), {}, dbus_interface=GATT_CHRC_IFACE)
-    except (BTLEException,BTLEDisconnectError,BTLEInternalError) as e:
+        data = plejd_enc_dec(pi["key"], pi["address"], payload)
+        pi["characteristics"]["data"][0].WriteValue(list(data), {}, dbus_interface=GATT_CHRC_IFACE)
+    except DBusException as e:
         _LOGGER.warning("Write failed: '%s'" % (e))
         connect(pi)
-        pi["device"].writeCharacteristic(handle, data, wait)
+        data = plejd_enc_dec(pi["key"], pi["address"], payload)
+        pi["characteristics"]["data"][0].WriteValue(list(data), {}, dbus_interface=GATT_CHRC_IFACE)
 
 def setup_platform(hass, config, add_entities, discovery_info=None):
     cryptokey = binascii.a2b_hex(config.get(CONF_CRYPTO_KEY).replace('-', ''))
@@ -472,6 +483,3 @@ def setup_platform(hass, config, add_entities, discovery_info=None):
         devices.append(new)
 
     add_entities(devices)
-
-def generic_error_cb(error):
-    _LOGGER.error('D-Bus call failed: ' + str(error))
