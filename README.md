@@ -65,12 +65,8 @@ using jq and shell tricks.
 
 ### Hassbian:
 
-Make sure to have bluepy installed in your python environment. Bluepy comes
-with a helper called bluepy-helper, to allow scanning for devices this has
-to be given additional capabilities:
-```
-$ sudo setcap 'cap_net_raw,cap_net_admin+eip' /srv/homeassistant/lib/python3.5/site-packages/bluepy/bluepy-helper
-```
+Make sure the homeassistant user has permissions to use bluetooth, this might
+require putting it in the bluetooth group.
 
 Run this as a custom component, put the files light.py, manifest.json and
 \_\_init\_\_.py in custom\_components/plejd in your configuration.yaml add
