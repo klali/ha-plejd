@@ -2,7 +2,7 @@
   "domain": "plejd",
   "name": "Plejd",
   "documentation": "https://github.com/klali/ha-plejd",
-  "requirements": [ "dbus-python", "PyGObject", "cryptography" ],
+  "requirements": [ "dbus-next", "cryptography" ],
   "dependencies": [],
   "codeowners": [ "@klali" ]
 }
