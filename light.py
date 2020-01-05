@@ -122,7 +122,7 @@ class PlejdLight(Light):
             self._brightness = brightness << 8 | brightness
             payload = binascii.a2b_hex("%02x0110009801%04x" % (self._id, self._brightness))
 
-        _LOGGER.debug("turning on %s(%02x) with brigtness %02x" % (self._name, self._id, brightness or 0))
+        _LOGGER.debug("Turning on %s(%02x) with brigtness %02x" % (self._name, self._id, brightness or 0))
         await plejd_write(pi, payload)
 
     async def async_turn_off(self, **kwargs):
@@ -132,7 +132,7 @@ class PlejdLight(Light):
             return
 
         payload = binascii.a2b_hex("%02x0110009700" % (self._id))
-        _LOGGER.debug("turning off %s(%02x)" % (self._name, self._id))
+        _LOGGER.debug("Turning off %s(%02x)" % (self._name, self._id))
         await plejd_write(pi, payload)
 
 async def connect(pi):
@@ -199,7 +199,7 @@ async def connect(pi):
             await plejd['obj'].call_connect()
             break
         except DBusError as e:
-            _LOGGER.warning("error connecting to plejd: %s" % (str(e)))
+            _LOGGER.warning("Error connecting to plejd: %s" % (str(e)))
 
     await asyncio.sleep(2)
 
@@ -285,10 +285,10 @@ async def connect(pi):
             device = PLEJD_DEVICES[dec[0]]
         elif dec[0] == 0x01 and dec[3:5] == b'\x00\x1b':
             time = struct.unpack_from('<I', dec, 5)[0]
-            _LOGGER.debug("plejd network reports time as '%s'", datetime.fromtimestamp(time))
+            _LOGGER.debug("Plejd network reports time as '%s'", datetime.fromtimestamp(time))
             return
         else:
-            _LOGGER.debug("no match for device '%02x' (%s)" % (dec[0], binascii.b2a_hex(dec)))
+            _LOGGER.debug("No match for device '%02x' (%s)" % (dec[0], binascii.b2a_hex(dec)))
             return
         dim = None
         state = None
@@ -300,7 +300,7 @@ async def connect(pi):
             # 0097 is state only
             state = dec[5]
         else:
-            _LOGGER.debug("no match for command '%s' (%s)" % (binascii.b2a_hex(dec[3:5]), binascii.b2a_hex(dec)))
+            _LOGGER.debug("No match for command '%s' (%s)" % (binascii.b2a_hex(dec[3:5]), binascii.b2a_hex(dec)))
             return
         if(state == 0):
             state = False
@@ -351,10 +351,10 @@ async def plejd_ping(pi):
         await char.call_write_value(ping, {})
         pong = await char.call_read_value({})
     except DBusError as e:
-        _LOGGER.warning("plejd ping errored: %s" % (str(e)))
+        _LOGGER.warning("Plejd ping errored: %s" % (str(e)))
         return False
     if((ping[0] + 1) & 0xff != pong[0]):
-        _LOGGER.warning("plejd ping failed %02x - %02x" % (ping[0], pong[0]))
+        _LOGGER.warning("Plejd ping failed %02x - %02x" % (ping[0], pong[0]))
         return False
 
     _LOGGER.debug("Successfully pinged with %02x" % (ping[0]))
@@ -369,7 +369,7 @@ async def plejd_auth(pi):
         r = plejd_chalresp(pi["key"], chal)
         await char.call_write_value(r, {})
     except DbusError as e:
-        _LOGGER.warning("plejd authentication errored: %s" % (str(e)))
+        _LOGGER.warning("Plejd authentication errored: %s" % (str(e)))
         return False
     return True
 
@@ -411,7 +411,7 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
     devices = []
     for identity, entity_info in config[CONF_DEVICES].items():
         i = int(identity)
-        _LOGGER.debug("adding device %d (%s)" % (i, entity_info[CONF_NAME]))
+        _LOGGER.debug("Adding device %d (%s)" % (i, entity_info[CONF_NAME]))
         new = PlejdLight(entity_info[CONF_NAME], i)
         PLEJD_DEVICES[i] = new
         devices.append(new)
