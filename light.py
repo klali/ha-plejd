@@ -18,7 +18,7 @@ import voluptuous as vol
 
 from homeassistant.core import callback
 from homeassistant.components.light import (ATTR_BRIGHTNESS, PLATFORM_SCHEMA, SUPPORT_BRIGHTNESS, Light)
-from homeassistant.const import CONF_NAME, EVENT_HOMEASSISTANT_START, EVENT_HOMEASSISTANT_STOP
+from homeassistant.const import CONF_NAME, CONF_DEVICES, EVENT_HOMEASSISTANT_START, EVENT_HOMEASSISTANT_STOP
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.event import async_track_point_in_utc_time
 import homeassistant.util.dt as dt_util
@@ -32,8 +32,7 @@ import struct
 from datetime import timedelta, datetime
 
 CONF_CRYPTO_KEY = 'crypto_key'
-CONF_DEVICES = 'devices'
-CONF_NAME = 'name'
+CONF_DISCOVERY_TIMEOUT = 'discovery_timeout'
 
 DATA_PLEJD = 'plejdObject'
 
@@ -43,12 +42,15 @@ _LOGGER = logging.getLogger(__name__)
 
 PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
     vol.Required(CONF_CRYPTO_KEY): cv.string,
-    vol.Optional(CONF_DEVICES, default={}): {
+    vol.Required(CONF_DEVICES, default={}): {
         cv.string: vol.Schema({
             vol.Required(CONF_NAME): cv.string
             })
         },
+    vol.Optional(CONF_DISCOVERY_TIMEOUT): cv.positive_int,
     })
+
+DEFAULT_DISCOVERY_TIMEOUT = 2
 
 BLUEZ_SERVICE_NAME = 'org.bluez'
 DBUS_OM_IFACE =      'org.freedesktop.DBus.ObjectManager'
@@ -181,7 +183,7 @@ async def connect(pi):
             }
     await adapter.call_set_discovery_filter(scan_filter)
     await adapter.call_start_discovery()
-    await asyncio.sleep(2)
+    await asyncio.sleep(pi["discovery_timeout"])
 
     for plejd in plejds:
         device_introspection = await bus.introspect(BLUEZ_SERVICE_NAME, plejd['path'])
@@ -201,7 +203,7 @@ async def connect(pi):
         except DBusError as e:
             _LOGGER.warning("Error connecting to plejd: %s" % (str(e)))
 
-    await asyncio.sleep(2)
+    await asyncio.sleep(pi["discovery_timeout"])
 
     objects = await om.call_get_managed_objects()
     chrcs = []
@@ -415,5 +417,10 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
         new = PlejdLight(entity_info[CONF_NAME], i)
         PLEJD_DEVICES[i] = new
         devices.append(new)
+
+    if CONF_DISCOVERY_TIMEOUT in config:
+        plejdinfo["discovery_timeout"] = config[CONF_DISCOVERY_TIMEOUT]
+    else:
+        plejdinfo["discovery_timeout"] = DEFAULT_DISCOVERY_TIMEOUT
 
     async_add_entities(devices)
