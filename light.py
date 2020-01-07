@@ -167,6 +167,7 @@ async def connect(pi):
             dev = bus.get_proxy_object(BLUEZ_SERVICE_NAME, path, device_introspection).get_interface(BLUEZ_DEVICE_IFACE)
             connected = await dev.get_connected()
             if connected:
+                _LOGGER.debug("Disconnecting %s" % (path))
                 await dev.call_disconnect()
             await adapter.call_remove_device(path)
 
