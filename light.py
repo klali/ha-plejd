@@ -319,8 +319,6 @@ async def connect(pi):
     pi["characteristics"]["last_data_prop"].on_properties_changed(handle_notification_cb)
     await pi["characteristics"]["last_data"].call_start_notify()
 
-    _LOGGER.debug("All plejd setup completed")
-
     return
 
 def plejd_chalresp(key, chal):
@@ -428,3 +426,4 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
         devices.append(new)
 
     async_add_entities(devices)
+    _LOGGER.debug("All plejd setup completed")
