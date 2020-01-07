@@ -101,6 +101,7 @@ class PlejdLight(Light):
     def supported_features(self):
         return SUPPORT_BRIGHTNESS
 
+    @callback
     def update_state(self, state, brightness=None):
         self._state = state
         self._brightness = brightness
@@ -108,7 +109,7 @@ class PlejdLight(Light):
             _LOGGER.debug("%s(%02x) turned %r with brightness %04x" % (self._name, self._id, state, brightness))
         else:
             _LOGGER.debug("%s(%02x) turned %r" % (self._name, self._id, state))
-        self.schedule_update_ha_state()
+        self.async_schedule_update_ha_state()
 
     async def async_turn_on(self, **kwargs):
         pi = self.hass.data[DATA_PLEJD]
