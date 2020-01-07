@@ -22,6 +22,7 @@ from homeassistant.const import CONF_NAME, CONF_DEVICES, EVENT_HOMEASSISTANT_STA
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.event import async_track_point_in_utc_time
 import homeassistant.util.dt as dt_util
+from homeassistant.exceptions import PlatformNotReady
 
 import asyncio
 
@@ -142,6 +143,8 @@ async def connect(pi):
     from dbus_next.aio import MessageBus
     from dbus_next.errors import DBusError
 
+    pi["characteristics"] = None
+
     bus = await MessageBus(bus_type=BusType.SYSTEM).connect()
 
     om_introspection = await bus.introspect(BLUEZ_SERVICE_NAME, '/')
@@ -190,8 +193,10 @@ async def connect(pi):
         dev = bus.get_proxy_object(BLUEZ_SERVICE_NAME, plejd['path'], device_introspection).get_interface(BLUEZ_DEVICE_IFACE)
         plejd['RSSI'] = await dev.get_rssi()
         plejd['obj'] = dev
+        _LOGGER.debug("Discovered plejd %s with RSSI %d" % (plejd['path'], plejd['RSSI']))
 
     if len(plejds) == 0:
+        _LOGGER.warning("No plejd devices found")
         return
 
     plejds.sort(key = lambda a: a['RSSI'], reverse = True)
@@ -219,7 +224,7 @@ async def connect(pi):
         service = bus.get_proxy_object(BLUEZ_SERVICE_NAME, service_path, service_introspection).get_interface(GATT_SERVICE_IFACE)
         uuid = await service.get_uuid()
         if uuid != PLEJD_SVC_UUID:
-            return False
+            return None
 
         dev = await service.get_device()
         x = re.search('dev_([0-9A-F_]+)$', dev)
@@ -263,13 +268,11 @@ async def connect(pi):
         _LOGGER.warning("Failed connecting to plejd service")
         return
 
+    if await plejd_auth(pi["key"], plejd_service[1]["auth"]) == False:
+        return
+
     pi["address"] = plejd_service[0]
     pi["characteristics"] = plejd_service[1]
-
-    if await plejd_auth(pi) == False:
-        return
-    if await plejd_ping(pi) == False:
-        return
 
     @callback
     def handle_notification_cb(iface, changed_props, invalidated_props):
@@ -362,13 +365,12 @@ async def plejd_ping(pi):
     _LOGGER.debug("Successfully pinged with %02x" % (ping[0]))
     return True
 
-async def plejd_auth(pi):
+async def plejd_auth(key, char):
     from dbus_next.errors import DBusError
-    char = pi["characteristics"]["auth"]
     try:
         await char.call_write_value(b"\x00", {})
         chal = await char.call_read_value({})
-        r = plejd_chalresp(pi["key"], chal)
+        r = plejd_chalresp(key, chal)
         await char.call_write_value(r, {})
     except DbusError as e:
         _LOGGER.warning("Plejd authentication errored: %s" % (str(e)))
@@ -398,17 +400,22 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
             await connect(pi)
         plejdinfo["remove_timer"] = async_track_point_in_utc_time(hass, _ping, dt_util.utcnow() + timedelta(seconds = 300))
 
-    async def _start_plejd(event):
-        await connect(plejdinfo)
-        if "characteristics" in plejdinfo:
-            await _ping(dt_util.utcnow())
-
     async def _stop_plejd(event):
         if "remove_timer" in plejdinfo:
             plejdinfo["remove_timer"]()
 
-    hass.bus.async_listen_once(EVENT_HOMEASSISTANT_START, _start_plejd)
     hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STOP, _stop_plejd)
+
+    if CONF_DISCOVERY_TIMEOUT in config:
+        plejdinfo["discovery_timeout"] = config[CONF_DISCOVERY_TIMEOUT]
+    else:
+        plejdinfo["discovery_timeout"] = DEFAULT_DISCOVERY_TIMEOUT
+
+    await connect(plejdinfo)
+    if plejdinfo["characteristics"] is not None:
+        await _ping(dt_util.utcnow())
+    else:
+        raise PlatformNotReady
 
     devices = []
     for identity, entity_info in config[CONF_DEVICES].items():
@@ -417,10 +424,5 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
         new = PlejdLight(entity_info[CONF_NAME], i)
         PLEJD_DEVICES[i] = new
         devices.append(new)
-
-    if CONF_DISCOVERY_TIMEOUT in config:
-        plejdinfo["discovery_timeout"] = config[CONF_DISCOVERY_TIMEOUT]
-    else:
-        plejdinfo["discovery_timeout"] = DEFAULT_DISCOVERY_TIMEOUT
 
     async_add_entities(devices)
