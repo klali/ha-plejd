@@ -34,6 +34,7 @@ from datetime import timedelta, datetime
 
 CONF_CRYPTO_KEY = 'crypto_key'
 CONF_DISCOVERY_TIMEOUT = 'discovery_timeout'
+CONF_ADAPTER = 'adapter'
 
 DATA_PLEJD = 'plejdObject'
 
@@ -49,6 +50,7 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
             })
         },
     vol.Optional(CONF_DISCOVERY_TIMEOUT): cv.positive_int,
+    vol.Optional(CONF_ADAPTER): cv.string,
     })
 
 DEFAULT_DISCOVERY_TIMEOUT = 2
@@ -154,6 +156,8 @@ async def connect(pi):
     om_objects = await om.call_get_managed_objects()
     for path, interfaces in om_objects.items():
         if BLUEZ_ADAPTER_IFACE in interfaces.keys():
+            if "adapter" in pi and pi["adapter"] not in path:
+                _LOGGER.debug("Skipping adapter %s since it doesn't match %s" % (path, pi["adapter"]))
             _LOGGER.debug("Discovered bluetooth adapter %s" % (path))
             adapter_introspection = await bus.introspect(BLUEZ_SERVICE_NAME, path)
             adapter = bus.get_proxy_object(BLUEZ_SERVICE_NAME, path, adapter_introspection).get_interface(BLUEZ_ADAPTER_IFACE)
@@ -413,6 +417,9 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
         plejdinfo["discovery_timeout"] = config[CONF_DISCOVERY_TIMEOUT]
     else:
         plejdinfo["discovery_timeout"] = DEFAULT_DISCOVERY_TIMEOUT
+
+    if CONF_ADAPTER in config:
+        plejdinfo["adapter"] = config[CONF_ADAPTER]
 
     await connect(plejdinfo)
     if plejdinfo["characteristics"] is not None:
