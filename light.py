@@ -316,6 +316,8 @@ async def connect(pi):
 
         device.update_state(state, dim)
 
+    await adapter.call_stop_discovery()
+
     pi["characteristics"]["last_data_prop"].on_properties_changed(handle_notification_cb)
     await pi["characteristics"]["last_data"].call_start_notify()
 
