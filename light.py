@@ -154,6 +154,7 @@ async def connect(pi):
     om_objects = await om.call_get_managed_objects()
     for path, interfaces in om_objects.items():
         if BLUEZ_ADAPTER_IFACE in interfaces.keys():
+            _LOGGER.debug("Discovered bluetooth adapter %s" % (path))
             adapter_introspection = await bus.introspect(BLUEZ_SERVICE_NAME, path)
             adapter = bus.get_proxy_object(BLUEZ_SERVICE_NAME, path, adapter_introspection).get_interface(BLUEZ_ADAPTER_IFACE)
             break
