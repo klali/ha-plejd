@@ -34,6 +34,7 @@ from datetime import timedelta, datetime
 
 CONF_CRYPTO_KEY = 'crypto_key'
 CONF_DISCOVERY_TIMEOUT = 'discovery_timeout'
+CONF_DBUS_ADDRESS = 'dbus_address'
 
 DATA_PLEJD = 'plejdObject'
 
@@ -49,6 +50,7 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
             })
         },
     vol.Optional(CONF_DISCOVERY_TIMEOUT): cv.positive_int,
+    vol.Optional(CONF_DBUS_ADDRESS): cv.string,
     })
 
 DEFAULT_DISCOVERY_TIMEOUT = 2
@@ -146,7 +148,7 @@ async def connect(pi):
 
     pi["characteristics"] = None
 
-    bus = await MessageBus(bus_type=BusType.SYSTEM).connect()
+    bus = await MessageBus(bus_type=BusType.SYSTEM, bus_address=pi["dbus_address"]).connect()
 
     om_introspection = await bus.introspect(BLUEZ_SERVICE_NAME, '/')
     om = bus.get_proxy_object(BLUEZ_SERVICE_NAME, '/', om_introspection).get_interface(DBUS_OM_IFACE)
@@ -413,6 +415,11 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
         plejdinfo["discovery_timeout"] = config[CONF_DISCOVERY_TIMEOUT]
     else:
         plejdinfo["discovery_timeout"] = DEFAULT_DISCOVERY_TIMEOUT
+
+    if CONF_DBUS_ADDRESS in config:
+        plejdinfo["dbus_address"] = config(CONF_DBUS_ADDRESS)
+    else:
+        plejdinfo["dbus_address"] = None
 
     await connect(plejdinfo)
     if plejdinfo["characteristics"] is not None:
