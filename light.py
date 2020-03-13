@@ -417,7 +417,7 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
         plejdinfo["discovery_timeout"] = DEFAULT_DISCOVERY_TIMEOUT
 
     if CONF_DBUS_ADDRESS in config:
-        plejdinfo["dbus_address"] = config(CONF_DBUS_ADDRESS)
+        plejdinfo["dbus_address"] = config[CONF_DBUS_ADDRESS]
     else:
         plejdinfo["dbus_address"] = None
 
