@@ -36,6 +36,9 @@ CONF_CRYPTO_KEY = 'crypto_key'
 CONF_DISCOVERY_TIMEOUT = 'discovery_timeout'
 CONF_DBUS_ADDRESS = 'dbus_address'
 
+DEFAULT_DISCOVERY_TIMEOUT = 2
+DEFAULT_DBUS_PATH = 'unix:path=/run/dbus/system_bus_socket'
+
 DATA_PLEJD = 'plejdObject'
 
 PLEJD_DEVICES = {}
@@ -49,11 +52,10 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
             vol.Required(CONF_NAME): cv.string
             })
         },
-    vol.Optional(CONF_DISCOVERY_TIMEOUT): cv.positive_int,
-    vol.Optional(CONF_DBUS_ADDRESS): cv.string,
+    vol.Optional(CONF_DISCOVERY_TIMEOUT, default=DEFAULT_DISCOVERY_TIMEOUT): cv.positive_int,
+    vol.Optional(CONF_DBUS_ADDRESS, default=DEFAULT_DBUS_PATH): cv.string,
     })
 
-DEFAULT_DISCOVERY_TIMEOUT = 2
 
 BLUEZ_SERVICE_NAME = 'org.bluez'
 DBUS_OM_IFACE =      'org.freedesktop.DBus.ObjectManager'
@@ -411,15 +413,8 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
 
     hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STOP, _stop_plejd)
 
-    if CONF_DISCOVERY_TIMEOUT in config:
-        plejdinfo["discovery_timeout"] = config[CONF_DISCOVERY_TIMEOUT]
-    else:
-        plejdinfo["discovery_timeout"] = DEFAULT_DISCOVERY_TIMEOUT
-
-    if CONF_DBUS_ADDRESS in config:
-        plejdinfo["dbus_address"] = config[CONF_DBUS_ADDRESS]
-    else:
-        plejdinfo["dbus_address"] = None
+    plejdinfo["discovery_timeout"] = config[CONF_DISCOVERY_TIMEOUT]
+    plejdinfo["dbus_address"] = config[CONF_DBUS_ADDRESS]
 
     await connect(plejdinfo)
     if plejdinfo["characteristics"] is not None:
