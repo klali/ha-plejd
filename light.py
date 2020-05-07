@@ -18,11 +18,13 @@ import voluptuous as vol
 
 from homeassistant.core import callback
 from homeassistant.components.light import (ATTR_BRIGHTNESS, PLATFORM_SCHEMA, SUPPORT_BRIGHTNESS, Light)
-from homeassistant.const import CONF_NAME, CONF_DEVICES, EVENT_HOMEASSISTANT_START, EVENT_HOMEASSISTANT_STOP
+from homeassistant.const import CONF_NAME, CONF_DEVICES, EVENT_HOMEASSISTANT_START, EVENT_HOMEASSISTANT_STOP, STATE_ON
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.event import async_track_point_in_utc_time
+from homeassistant.helpers.restore_state import RestoreEntity
 import homeassistant.util.dt as dt_util
 from homeassistant.exceptions import PlatformNotReady
+
 
 import asyncio
 
@@ -72,11 +74,21 @@ PLEJD_LAST_DATA_UUID = '31ba0005-6085-4726-be45-040c957391b5'
 PLEJD_AUTH_UUID =    '31ba0009-6085-4726-be45-040c957391b5'
 PLEJD_PING_UUID =    '31ba000a-6085-4726-be45-040c957391b5'
 
-class PlejdLight(Light):
+class PlejdLight(Light, RestoreEntity):
     def __init__(self, name, identity):
         self._name = name
-        self._state = False
         self._id = identity
+
+    async def async_added_to_hass(self):
+        await super().async_added_to_hass()
+        old = await self.async_get_last_state()
+        if old is not None:
+            self._state = old.state == STATE_ON
+            if old.attributes.get(ATTR_BRIGHTNESS) is not None:
+                brightness = int(old.attributes[ATTR_BRIGHTNESS])
+                self._brightness = brightness << 8 | brightness
+        else:
+            self._state = False
 
     @property
     def should_poll(self):
