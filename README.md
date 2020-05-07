@@ -7,8 +7,10 @@ bluetooth le protocol.
 
 ## Tested platforms
 This component has been tested on the following platforms:
- - Raspberry pi 3b+ running hassbian (Bluetooth 4.2 Cypress CYW43455 chip)
+ - Raspberry pi 3b+ running ubuntu (18.04) and home-assistant in venv
  - Intel NUC NUC7i7BNH (Bluetooth 4.2 Intel 8265) running ESXi 6.7 and linux guest
+
+There's been reports that bluez version 5.37 is problematic while 5.48 works fine.
 
 ## Requirements
 * A bluetooth adapter that supports Bluetooth Low Energy (BLE)
