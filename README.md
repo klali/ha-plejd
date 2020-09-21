@@ -56,7 +56,7 @@ $ cat site.json | jq '.PlejdMesh.CryptoKey' | sed 's/-//g'
 ```
 2. Extract the outputAddresses:
 ```
-$ cat site.json  | jq '.PlejdMesh.outputAdresses' | grep -v '\$type' | jq '.[][]'
+$ cat site.json | jq '.PlejdMesh._outputAddresses' | grep -v '\$type' | jq '.[][]'
 ```
 
 These steps can obviously be done manually instead of extracting the fields
