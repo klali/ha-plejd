@@ -32,7 +32,7 @@ import re
 import binascii
 import os
 import struct
-from datetime import timedelta, datetime
+from datetime import timedelta, datetime, timezone
 
 CONF_CRYPTO_KEY = 'crypto_key'
 CONF_DISCOVERY_TIMEOUT = 'discovery_timeout'
@@ -40,6 +40,7 @@ CONF_DBUS_ADDRESS = 'dbus_address'
 
 DEFAULT_DISCOVERY_TIMEOUT = 2
 DEFAULT_DBUS_PATH = 'unix:path=/run/dbus/system_bus_socket'
+TIME_DELTA_SYNC = 60 # if delta is more than a minute, sync time
 
 DATA_PLEJD = 'plejdObject'
 
@@ -309,8 +310,19 @@ async def connect(pi):
         if dec[0] in PLEJD_DEVICES:
             device = PLEJD_DEVICES[dec[0]]
         elif dec[0] == 0x01 and dec[3:5] == b'\x00\x1b':
-            time = struct.unpack_from('<I', dec, 5)[0]
-            _LOGGER.debug("Plejd network reports time as '%s'", datetime.fromtimestamp(time))
+            n = dt_util.now().replace(tzinfo=None)
+            time = datetime.fromtimestamp(struct.unpack_from('<I', dec, 5)[0])
+            if n > time:
+                delta = n - time
+            else:
+                delta = time - n
+            _LOGGER.debug("Plejd network reports time as '%s'", time)
+            s = delta.total_seconds()
+            if s > TIME_DELTA_SYNC:
+                _LOGGER.info("Plejd time delta is %d seconds, setting time to '%s'.", s, n)
+                ntime = b"\x00\x01\x10\x00\x1b"
+                ntime += struct.pack('<I', int(n.timestamp())) + b"\x00"
+                pi["hass"].async_create_task(plejd_write(pi, ntime))
             return
         else:
             _LOGGER.debug("No match for device '%02x' (%s)" % (dec[0], binascii.b2a_hex(dec)))
@@ -410,7 +422,7 @@ async def plejd_write(pi, payload):
 
 async def async_setup_platform(hass, config, async_add_entities, discovery_info=None):
     cryptokey = binascii.a2b_hex(config.get(CONF_CRYPTO_KEY).replace('-', ''))
-    plejdinfo = {"key": cryptokey}
+    plejdinfo = {"key": cryptokey, "hass": hass}
 
     hass.data[DATA_PLEJD] = plejdinfo
 
