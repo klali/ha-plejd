@@ -70,6 +70,7 @@ GATT_SERVICE_IFACE = 'org.bluez.GattService1'
 GATT_CHRC_IFACE =    'org.bluez.GattCharacteristic1'
 
 PLEJD_SVC_UUID =     '31ba0001-6085-4726-be45-040c957391b5'
+PLEJD_LIGHTLEVEL_UUID = '31ba0003-6085-4726-be45-040c957391b5'
 PLEJD_DATA_UUID =    '31ba0004-6085-4726-be45-040c957391b5'
 PLEJD_LAST_DATA_UUID = '31ba0005-6085-4726-be45-040c957391b5'
 PLEJD_AUTH_UUID =    '31ba0009-6085-4726-be45-040c957391b5'
@@ -271,6 +272,9 @@ async def connect(pi):
                 chars["auth"] = chrc
             elif uuid == PLEJD_PING_UUID:
                 chars["ping"] = chrc
+            elif uuid == PLEJD_LIGHTLEVEL_UUID:
+                chars["lightlevel"] = chrc
+                chars["lightlevel_prop"] = chrc_prop
 
         return (addr, chars)
 
@@ -342,10 +346,37 @@ async def connect(pi):
 
         device.update_state(bool(state), dim)
 
+    @callback
+    def handle_lightlevel_cb(iface, changed_props, invalidated_props):
+        if iface != GATT_CHRC_IFACE:
+            return
+        if not len(changed_props):
+            return
+        value = changed_props.get('Value', None)
+        if not value:
+            return
+
+        value = value.value
+        if len(value) != 20 and len(value) != 10:
+            _LOGGER.debug("Unknown length data received for lightlevel: '%s'" % (binascii.b2a_hex(value)))
+            return
+
+        msgs = [value[0:10]]
+        if len(value) == 20:
+            msgs.append(value[10:20])
+
+        for m in msgs:
+            if m[0] not in PLEJD_DEVICES:
+                continue
+            device = PLEJD_DEVICES[m[0]]
+            device.update_state(bool(m[1]), int.from_bytes(m[5:7], 'little'))
+
     await adapter.call_stop_discovery()
 
     pi["characteristics"]["last_data_prop"].on_properties_changed(handle_notification_cb)
     await pi["characteristics"]["last_data"].call_start_notify()
+    pi["characteristics"]["lightlevel_prop"].on_properties_changed(handle_lightlevel_cb)
+    await pi["characteristics"]["lightlevel"].call_start_notify()
 
     return
 
@@ -416,6 +447,9 @@ async def plejd_write(pi, payload):
         data = plejd_enc_dec(pi["key"], pi["address"], payload)
         await pi["characteristics"]["data"].call_write_value(data, {})
 
+async def plejd_update(pi):
+    await pi["characteristics"]["lightlevel"].call_write_value(b"\x01", {})
+
 async def async_setup_platform(hass, config, async_add_entities, discovery_info=None):
     cryptokey = binascii.a2b_hex(config.get(CONF_CRYPTO_KEY).replace('-', ''))
     plejdinfo = {"key": cryptokey, "hass": hass}
@@ -452,4 +486,6 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
         devices.append(new)
 
     async_add_entities(devices)
+
+    await plejd_update(plejdinfo)
     _LOGGER.debug("All plejd setup completed")
