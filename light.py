@@ -17,7 +17,7 @@ import logging
 import voluptuous as vol
 
 from homeassistant.core import callback
-from homeassistant.components.light import (ATTR_BRIGHTNESS, PLATFORM_SCHEMA, SUPPORT_BRIGHTNESS, Light)
+from homeassistant.components.light import (ATTR_BRIGHTNESS, PLATFORM_SCHEMA, SUPPORT_BRIGHTNESS, LightEntity)
 from homeassistant.const import CONF_NAME, CONF_DEVICES, EVENT_HOMEASSISTANT_START, EVENT_HOMEASSISTANT_STOP, STATE_ON
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.event import async_track_point_in_utc_time
@@ -75,7 +75,7 @@ PLEJD_LAST_DATA_UUID = '31ba0005-6085-4726-be45-040c957391b5'
 PLEJD_AUTH_UUID =    '31ba0009-6085-4726-be45-040c957391b5'
 PLEJD_PING_UUID =    '31ba000a-6085-4726-be45-040c957391b5'
 
-class PlejdLight(Light, RestoreEntity):
+class PlejdLight(LightEntity, RestoreEntity):
     def __init__(self, name, identity):
         self._name = name
         self._id = identity
