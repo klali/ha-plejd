@@ -339,12 +339,8 @@ async def connect(pi):
         else:
             _LOGGER.debug("No match for command '%s' (%s)" % (binascii.b2a_hex(dec[3:5]), binascii.b2a_hex(dec)))
             return
-        if(state == 0):
-            state = False
-        else:
-            state = True
 
-        device.update_state(state, dim)
+        device.update_state(bool(state), dim)
 
     await adapter.call_stop_discovery()
 
