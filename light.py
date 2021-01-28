@@ -120,6 +120,10 @@ class PlejdLight(LightEntity, RestoreEntity):
     def supported_features(self):
         return SUPPORT_BRIGHTNESS
 
+    @property
+    def unique_id(self):
+        return self._id
+
     @callback
     def update_state(self, state, brightness=None):
         self._state = state
