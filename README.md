@@ -31,7 +31,7 @@ $ adb backup com.plejd.plejdapp
 ```
 3. Unpack the backup:
 ```
-$ dd if=backup.ab bs=1 skip=24 | python -c "import zlib,sys;sys.stdout.write(zlib.decompress(sys.stdin.read()))" | tar -xv
+$ dd if=backup.ab bs=1 skip=24 | zlib-flate -uncompress | tar -xv
 ```
 4. Recover the .site file:
 ```
