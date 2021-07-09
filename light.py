@@ -37,6 +37,7 @@ from datetime import timedelta, datetime, timezone
 CONF_CRYPTO_KEY = 'crypto_key'
 CONF_DISCOVERY_TIMEOUT = 'discovery_timeout'
 CONF_DBUS_ADDRESS = 'dbus_address'
+CONF_OFFSET_MINUTES = 'offset_minutes'
 
 DEFAULT_DISCOVERY_TIMEOUT = 2
 DEFAULT_DBUS_PATH = 'unix:path=/run/dbus/system_bus_socket'
@@ -57,6 +58,7 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
         },
     vol.Optional(CONF_DISCOVERY_TIMEOUT, default=DEFAULT_DISCOVERY_TIMEOUT): cv.positive_int,
     vol.Optional(CONF_DBUS_ADDRESS, default=DEFAULT_DBUS_PATH): cv.string,
+    vol.Optional(CONF_OFFSET_MINUTES, default=0): int,
     })
 
 
@@ -320,10 +322,8 @@ async def connect(pi):
         elif dec[0] == 0x01 and dec[3:5] == b'\x00\x1b':
             n = dt_util.now().replace(tzinfo=None)
             time = datetime.fromtimestamp(struct.unpack_from('<I', dec, 5)[0])
-            if n > time:
-                delta = n - time
-            else:
-                delta = time - n
+            n = n + timedelta(minutes=pi["offset_minutes"])
+            delta = abs(time - n)
             _LOGGER.debug("Plejd network reports time as '%s'", time)
             s = delta.total_seconds()
             if s > TIME_DELTA_SYNC:
@@ -456,7 +456,7 @@ async def plejd_update(pi):
 
 async def async_setup_platform(hass, config, async_add_entities, discovery_info=None):
     cryptokey = binascii.a2b_hex(config.get(CONF_CRYPTO_KEY).replace('-', ''))
-    plejdinfo = {"key": cryptokey, "hass": hass}
+    plejdinfo = {"key": cryptokey, "hass": hass, "offset_minutes": config.get(CONF_OFFSET_MINUTES)}
 
     hass.data[DATA_PLEJD] = plejdinfo
 
