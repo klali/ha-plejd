@@ -171,7 +171,11 @@ async def connect(pi):
 
     pi["characteristics"] = None
 
-    bus = await MessageBus(bus_type=BusType.SYSTEM, bus_address=pi["dbus_address"]).connect()
+    try:
+        bus = await MessageBus(bus_type=BusType.SYSTEM, bus_address=pi["dbus_address"]).connect()
+    except FileNotFoundError as e:
+        _LOGGER.error("Failed to connect the dbus messagebus at '%s', make sure that exists" % (pi["dbus_address"]))
+        return
 
     om_introspection = await bus.introspect(BLUEZ_SERVICE_NAME, '/')
     om = bus.get_proxy_object(BLUEZ_SERVICE_NAME, '/', om_introspection).get_interface(DBUS_OM_IFACE)
