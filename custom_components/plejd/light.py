@@ -439,7 +439,7 @@ async def plejd_auth(key, char):
         chal = await char.call_read_value({})
         r = plejd_chalresp(key, chal)
         await char.call_write_value(r, {})
-    except DbusError as e:
+    except DBusError as e:
         _LOGGER.warning("Plejd authentication errored: %s" % (str(e)))
         return False
     return True
