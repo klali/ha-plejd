@@ -1,0 +1,12 @@
+trigger_scene:
+  name: Trigger scene
+  description: Triggers a Plejd scene, either by id or by name.
+  fields:
+    id:
+      name: Internal Plejd id
+      description: The internal Plejd id of the scene
+      example: 2
+    name:
+      name: Name of the scenario
+      description: The name of the scenario
+      example: All off
