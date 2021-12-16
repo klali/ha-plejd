@@ -40,6 +40,7 @@ The component will keep the time of the Plejd system up to date.
 | DIM-01-2P |     1x (dimmable)     |                 |          |                      |         |
 | DIM-02    |     2x (dimmable)     |                 |          |                      |         |
 | LED-10    |     1x (dimmable)     |                 |          |                      | No      |
+| SPR-01    |          1x           |                 |          |                      | No      |
 | REL-01-2P |          1x           |                 |          |                      | No      |
 | REL-02    |          2x           |                 |          |                      |         |
 | RTR-01 *  |                       |                 |    1x*   |         Yes*         |         |
