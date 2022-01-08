@@ -20,6 +20,7 @@ from typing import Optional
 
 from homeassistant.components.light import (
     ATTR_BRIGHTNESS,
+    ATTR_SUPPORTED_COLOR_MODES,
     COLOR_MODE_BRIGHTNESS,
     COLOR_MODE_ONOFF,
     LightEntity,
@@ -55,19 +56,24 @@ class PlejdLight(LightEntity, RestoreEntity):
         old = await self.async_get_last_state()
         if old is not None:
             self._attr_is_on = old.state == STATE_ON
-            if old.attributes.get(ATTR_BRIGHTNESS) is not None:
-                self._attr_brightness = old.attributes[ATTR_BRIGHTNESS]
-                self._attr_supported_color_modes = {COLOR_MODE_BRIGHTNESS}
-            else:
-                self._attr_supported_color_modes = {COLOR_MODE_ONOFF}
+            self._attr_supported_color_modes = old.attributes.get(
+                ATTR_SUPPORTED_COLOR_MODES
+            )
+            self._attr_brightness = old.attributes.get(ATTR_BRIGHTNESS)
         else:
             self._attr_is_on = False
+
+    def _dimmable(self) -> bool:
+        return (
+            self.supported_color_modes is not None
+            and COLOR_MODE_BRIGHTNESS in self.supported_color_modes
+        )
 
     @callback
     def update_state(self, state: bool, brightness: Optional[int] = None) -> None:
         """Update the state of the light."""
         self._attr_is_on = state
-        if self._attr_brightness or (
+        if self._dimmable or (
             brightness and self._last_brightness and brightness != self._last_brightness
         ):
             brightness = brightness or 0
@@ -90,8 +96,7 @@ class PlejdLight(LightEntity, RestoreEntity):
     async def async_turn_on(self, **kwargs) -> None:
         """Turn the light on."""
         brightness = kwargs.get(ATTR_BRIGHTNESS)
-        if self._attr_brightness:
-            brightness = brightness or 0
+        if self._attr_brightness and brightness:
             # Plejd brightness is two bytes, but HA brightness is one byte.
             payload = binascii.a2b_hex(
                 f"{self._hex_id}0110009801{brightness:02x}{brightness:02x}"
