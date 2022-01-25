@@ -53,10 +53,11 @@ on the attached puck, Home Assistant will not receive events from the button
 (only the controlled light), so it cannot be a separate `sensor`, and
 `plejd_button_event`s will not be triggered.
 
-Home Assistant initially sets all `light`s to non-dimmable, but if it notices a
-change in a light's brightness, the light will forever be set as dimmable. (To
-revert this, go to Developer Tools for this entity, set `supported_color_modes`
-to `- onoff` and remove the `brightness` line.)
+All lights are by default set to dimmable in Home Assistant. To make a light
+non-dimmable, add " (onoff)" or "*" to its name. This suffix will be removed
+before added to Home Assistant. (If a light is set to dimmable by error, add a
+suffix and then go to Developer Tools for this entity, set `supported_color_modes`
+to `- onoff` and remove the `brightness` line, or restart Home Assistant.)
 
 ## Tested platforms
 This component has been tested on the following platforms:

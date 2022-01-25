@@ -29,7 +29,7 @@ from homeassistant.const import CONF_LIGHTS, STATE_ON
 from homeassistant.core import callback
 from homeassistant.helpers.restore_state import RestoreEntity
 
-from .const import DOMAIN
+from .const import CONF_ONOFF, DOMAIN
 from .plejd_service import PlejdService
 
 _LOGGER = logging.getLogger(__name__)
@@ -41,14 +41,20 @@ class PlejdLight(LightEntity, RestoreEntity):
     _attr_should_poll = False
     _attr_assumed_state = False
     _hex_id: str
-    _last_brightness: Optional[int] = None
+    _dimmable: bool
 
-    def __init__(self, name: str, identity: int, service: PlejdService) -> None:
+    def __init__(
+        self, name: str, identity: int, dimmable: bool, service: PlejdService
+    ) -> None:
         """Initialize the light."""
         self._attr_name = name
         self._attr_unique_id = str(identity)
         self._hex_id = f"{identity:02x}"
         self._service = service
+        self._dimmable = dimmable
+        self._attr_supported_color_modes = {
+            COLOR_MODE_BRIGHTNESS if dimmable else COLOR_MODE_ONOFF
+        }
 
     async def async_added_to_hass(self) -> None:
         """Read the current state of the light when it is added to Home Assistant."""
@@ -63,40 +69,24 @@ class PlejdLight(LightEntity, RestoreEntity):
         else:
             self._attr_is_on = False
 
-    def _dimmable(self) -> bool:
-        return (
-            self.supported_color_modes is not None
-            and COLOR_MODE_BRIGHTNESS in self.supported_color_modes
-        )
-
     @callback
     def update_state(self, state: bool, brightness: Optional[int] = None) -> None:
         """Update the state of the light."""
         self._attr_is_on = state
-        if self._dimmable or (
-            brightness and self._last_brightness and brightness != self._last_brightness
-        ):
+        if self._dimmable:
             brightness = brightness or 0
             _LOGGER.debug(
                 f"{self.name} ({self.unique_id}) turned {self.state} with brightness {brightness}"
             )
             self._attr_brightness = brightness
-            self._attr_supported_color_modes = {COLOR_MODE_BRIGHTNESS}
         else:
-            if brightness:
-                _LOGGER.debug(
-                    f"{self.name} ({self.unique_id}) turned {self.state} with (ignored) brightness {brightness}"
-                )
-            else:
-                _LOGGER.debug(f"{self.name} ({self.unique_id}) turned {self.state}")
-            self._attr_supported_color_modes = {COLOR_MODE_ONOFF}
-        self._last_brightness = brightness
+            _LOGGER.debug(f"{self.name} ({self.unique_id}) turned {self.state}")
         self.async_schedule_update_ha_state()
 
     async def async_turn_on(self, **kwargs) -> None:
         """Turn the light on."""
         brightness = kwargs.get(ATTR_BRIGHTNESS)
-        if self._attr_brightness and brightness:
+        if self._dimmable and brightness:
             # Plejd brightness is two bytes, but HA brightness is one byte.
             payload = binascii.a2b_hex(
                 f"{self._hex_id}0110009801{brightness:02x}{brightness:02x}"
@@ -130,8 +120,17 @@ def setup_platform(hass, config, add_entities, discovery_info=None):
         if id in plejdinfo["devices"]:
             _LOGGER.warning(f"Found duplicate definition for Plejd device {id}.")
             continue
-        _LOGGER.debug(f"Adding light {id} ({light_name})")
-        light = PlejdLight(light_name, id, service)
+        dimmable = True
+        dimmable_text = "dimmable "
+        for oo in CONF_ONOFF:
+            if light_name.endswith(oo):
+                dimmable = False
+                dimmable_text = ""
+                light_name.removesuffix(oo)
+                break
+
+        _LOGGER.debug(f"Adding {dimmable_text}light {id} ({light_name})")
+        light = PlejdLight(light_name, id, dimmable, service)
         plejdinfo["devices"][id] = light
         lights.append(light)
 
