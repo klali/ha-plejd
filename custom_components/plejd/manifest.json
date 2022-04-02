@@ -3,7 +3,7 @@
   "name": "Plejd",
   "version": "2.0.0",
   "documentation": "https://github.com/klali/ha-plejd",
-  "requirements": [ "dbus-next==0.2.2", "cryptography==3.4.7" ],
+  "requirements": [ "dbus-next>=0.2.2", "cryptography>=3.4.7" ],
   "dependencies": [],
   "codeowners": [ "@klali", "@bnordli" ],
   "iot_class": "local_push"
