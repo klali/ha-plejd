@@ -126,7 +126,7 @@ def setup_platform(hass, config, add_entities, discovery_info=None):
             if light_name.endswith(oo):
                 dimmable = False
                 dimmable_text = ""
-                light_name.removesuffix(oo)
+                light_name = light_name.removesuffix(oo)
                 break
 
         _LOGGER.debug(f"Adding {dimmable_text}light {id} ({light_name})")
