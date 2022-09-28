@@ -446,14 +446,20 @@ async def plejd_auth(key, char):
 
 async def plejd_write(pi, payload):
     from dbus_next.errors import DBusError
+    async def _write(now):
+        await plejd_write(pi, payload)
     try:
         data = plejd_enc_dec(pi["key"], pi["address"], payload)
         await pi["characteristics"]["data"].call_write_value(data, {})
     except DBusError as e:
         _LOGGER.warning("Write failed: '%s'" % (e))
-        await connect(pi)
-        data = plejd_enc_dec(pi["key"], pi["address"], payload)
-        await pi["characteristics"]["data"].call_write_value(data, {})
+        if str(e) == "In Progress":
+            _LOGGER.debug("Postponing write")
+            async_track_point_in_utc_time(pi["hass"], _write, dt_util.utcnow() + timedelta(seconds = 5))
+        else:
+            await connect(pi)
+            data = plejd_enc_dec(pi["key"], pi["address"], payload)
+            await pi["characteristics"]["data"].call_write_value(data, {})
 
 async def plejd_update(pi):
     await pi["characteristics"]["lightlevel"].call_write_value(b"\x01", {})
