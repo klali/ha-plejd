@@ -99,7 +99,7 @@ mkdir -p /usr/share/hassio/homeassistant/custom_components
 Checkout the git repo and rename folder
 ```
 cd /usr/share/hassio/homeassistant/custom_components
-git checkout https://github.com/klali/ha-plejd.git
+git clone https://github.com/klali/ha-plejd.git
 mv ha-plejd plejd
 ```
 Update your configuration.yaml file
