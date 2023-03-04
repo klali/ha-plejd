@@ -38,6 +38,7 @@ CONF_CRYPTO_KEY = 'crypto_key'
 CONF_DISCOVERY_TIMEOUT = 'discovery_timeout'
 CONF_DBUS_ADDRESS = 'dbus_address'
 CONF_OFFSET_MINUTES = 'offset_minutes'
+CONF_ENDPOINTS = 'endpoints'
 
 DEFAULT_DISCOVERY_TIMEOUT = 2
 DEFAULT_DBUS_PATH = 'unix:path=/run/dbus/system_bus_socket'
@@ -59,6 +60,7 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
     vol.Optional(CONF_DISCOVERY_TIMEOUT, default=DEFAULT_DISCOVERY_TIMEOUT): cv.positive_int,
     vol.Optional(CONF_DBUS_ADDRESS, default=DEFAULT_DBUS_PATH): cv.string,
     vol.Optional(CONF_OFFSET_MINUTES, default=0): int,
+    vol.Optional(CONF_ENDPOINTS, default=[]): vol.All(cv.ensure_list, [cv.string]),
     })
 
 
@@ -226,6 +228,11 @@ async def connect(pi):
         plejd['RSSI'] = await dev.get_rssi()
         plejd['obj'] = dev
         _LOGGER.debug("Discovered plejd %s with RSSI %d" % (plejd['path'], plejd['RSSI']))
+
+    # Filter list of plejds if we are interested in specific endpoints
+    if len(pi['endpoints']) > 0:
+        _LOGGER.debug("Ignoring any device that is not one of %s" % (str(pi['endpoints'])))
+        plejds = [plejd for plejd in plejds if plejd['path'].split('/dev_')[1].replace('_','') in pi['endpoints']]
 
     if len(plejds) == 0:
         _LOGGER.warning("No plejd devices found")
@@ -466,7 +473,7 @@ async def plejd_update(pi):
 
 async def async_setup_platform(hass, config, async_add_entities, discovery_info=None):
     cryptokey = binascii.a2b_hex(config.get(CONF_CRYPTO_KEY).replace('-', ''))
-    plejdinfo = {"key": cryptokey, "hass": hass, "offset_minutes": config.get(CONF_OFFSET_MINUTES)}
+    plejdinfo = {"key": cryptokey, "hass": hass, "offset_minutes": config.get(CONF_OFFSET_MINUTES), "endpoints": config.get(CONF_ENDPOINTS)}
 
     hass.data[DATA_PLEJD] = plejdinfo
 

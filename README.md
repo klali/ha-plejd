@@ -89,6 +89,28 @@ light:
         name: bathroom
 ```
 
+If you know that there are a lot of plejd devices nearby that is not part of your installation you can specify which
+plejd ids home assistant is allowed to connect to using `endpoints: ['AAAAAAAAAAAA', 'BBBBBBBBBBBB', ... ]`. You can
+find the id for each plejd device in the ios/android app under devices->[plejd device]->about or in the extracted
+site.json file under `_outputAddresses`. For example, the following config would only allow connections to
+`A1B2C3D4E5F6`.
+
+```
+light:
+  - platform: plejd
+    crypto_key: !secret plejd
+    endpoints: ['A1B2C3D4E5F6']
+    devices:
+      11:
+        name: bedroom
+      13:
+        name: kitchen_1
+      14:
+        name: kitchen_2
+      16:
+        name: bathroom
+```
+
 ### HASS.IO Docker container
 
 Hass.io default installation script will map /usr/share/hassio/homeassistant to the /config directory inside the docker container.
