@@ -1,0 +1,9 @@
+write_data:
+  name: Write Plejd data
+  description: Write custom data to the Plejd mesh
+  fields:
+    data:
+      name: Data
+      description: Data to write
+      required: True
+      example: 100110009801ffff
