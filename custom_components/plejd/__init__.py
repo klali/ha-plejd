@@ -37,12 +37,14 @@ from .const import (
     CONF_CRYPTO_KEY,
     CONF_DBUS_ADDRESS,
     CONF_DISCOVERY_TIMEOUT,
+    CONF_ENDPOINTS,
     CONF_OFFSET_MINUTES,
     CONF_SCENES,
     DEFAULT_DBUS_PATH,
     DEFAULT_DISCOVERY_TIMEOUT,
     DOMAIN,
     SCENE_SERVICE,
+    WRITE_DATA_SERVICE,
 )
 from .plejd_service import PlejdService
 
@@ -59,6 +61,7 @@ CONFIG_SCHEMA = vol.Schema(
                     CONF_DISCOVERY_TIMEOUT, default=DEFAULT_DISCOVERY_TIMEOUT
                 ): cv.positive_int,
                 vol.Optional(CONF_DBUS_ADDRESS, default=DEFAULT_DBUS_PATH): cv.string,
+                vol.Optional(CONF_ENDPOINTS, default=[]): vol.All(cv.ensure_list, [cv.string]),
                 vol.Optional(CONF_OFFSET_MINUTES, default=0): int,
                 vol.Optional(CONF_LIGHTS, default={}): {cv.positive_int: cv.string},
                 vol.Optional(CONF_SWITCHES, default={}): {cv.positive_int: cv.string},
@@ -120,6 +123,15 @@ async def async_setup(hass: HomeAssistant, config: ConfigType):
     hass.services.async_register(
         DOMAIN, SCENE_SERVICE, handle_scene_service, schema=SCENE_SERVICE_SCHEMA
     )
+
+    @callback
+    async def handle_write_data_service(call: ServiceCall) -> None:
+        data = call.data.get("data")
+        _LOGGER.debug("Sending service data: '%s'" % (data))
+        await plejd_write(plejdinfo, binascii.a2b_hex(data))
+
+    hass.services.async_register(DOMAIN, WRITE_DATA_SERVICE, handle_write_data_service)
+
     _LOGGER.debug("Plejd platform setup completed")
     hass.async_create_task(service.request_update())
     return True

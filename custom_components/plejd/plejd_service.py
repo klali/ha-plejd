@@ -21,7 +21,7 @@ import logging
 import os
 import re
 import struct
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 from dbus_next.aio.proxy_object import ProxyInterface
 
@@ -44,6 +44,7 @@ from .const import (
     CONF_CRYPTO_KEY,
     CONF_DBUS_ADDRESS,
     CONF_DISCOVERY_TIMEOUT,
+    CONF_ENDPOINTS,
     CONF_OFFSET_MINUTES,
     DBUS_OM_IFACE,
     DBUS_PROP_IFACE,
@@ -129,7 +130,7 @@ class PlejdBus:
                 _LOGGER.debug(f"Discovered bluetooth adapter {path}")
                 return await self._get_interface(path, BLUEZ_ADAPTER_IFACE)
 
-    async def connect_device(self, timeout: int) -> bool:
+    async def connect_device(self, timeout: int, endpoints: List[str]) -> bool:
         """Disconnect all currently connected devices and connect to the closest plejd device."""
         from dbus_next import Variant
         from dbus_next.errors import DBusError
@@ -175,6 +176,11 @@ class PlejdBus:
             plejd["RSSI"] = await dev.get_rssi()
             plejd["obj"] = dev
             _LOGGER.debug(f"Discovered plejd {plejd['path']} with RSSI {plejd['RSSI']}")
+ 
+        # Filter list of plejds if we are interested in specific endpoints
+        if len(endpoints) > 0:
+            _LOGGER.debug("Ignoring any device that is not one of %s" % (str(endpoints)))
+            plejds = [plejd for plejd in plejds if plejd['path'].split('/dev_')[1].replace('_','') in endpoints]
 
         plejds.sort(key=lambda a: a["RSSI"], reverse=True)
         for plejd in plejds:
@@ -271,7 +277,8 @@ class PlejdService:
         if not await self._bus.connect():
             return False
         if not await self._bus.connect_device(
-            self._config.get(CONF_DISCOVERY_TIMEOUT, 0)
+            self._config.get(CONF_DISCOVERY_TIMEOUT, 0),
+            self._config.get(CONF_ENDPOINTS, [])
         ):
             return False
 
@@ -417,6 +424,10 @@ class PlejdService:
         _LOGGER.debug(f"Trigger scene {id}")
         self._hass.async_create_task(self._write(payload))
 
+    async def write_data(self, data: str) -> None:
+        """Write data directly to the bus"""
+        await self._bus.write_data("data", binascii.a2b_hex(data))
+
     async def request_update(self) -> None:
         """Request an update of all devices."""
         if not self._bus:
@@ -472,6 +483,8 @@ class PlejdService:
 
     async def _write(self, payload: bytes) -> None:
         from dbus_next.errors import DBusError
+        async def _retry(now):
+            await self._write(payload)
 
         if not self._bus or not self._plejd_address:
             _LOGGER.warning("Tried to write to plejd when not connected")
@@ -481,10 +494,15 @@ class PlejdService:
             data = self._enc_dec(self._plejd_address, payload)
             await self._bus.write_data("data", data)
         except DBusError as e:
-            _LOGGER.warning(f"Write failed, reconnecting: '{e}'")
-            await self.connect()
-            data = self._enc_dec(self._plejd_address, payload)
-            await self._bus.write_data("data", data)
+            _LOGGER.warning(f"Write failed: '{e}'")
+            if str(e) == "In Progress":
+                _LOGGER.debug("Postponing write")
+                async_track_point_in_utc_time(self._hass, _retry, dt_util.utcnow() + timedelta(seconds = 5))
+            else:
+                _LOGGER.warning(f"Reconnecting")
+                await self.connect()
+                data = self._enc_dec(self._plejd_address, payload)
+                await self._bus.write_data("data", data)
 
     def _chalresp(self, chal: bytes) -> bytes:
         import hashlib

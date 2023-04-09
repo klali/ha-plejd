@@ -18,10 +18,12 @@ DOMAIN = "plejd"
 BUTTON_EVENT = DOMAIN + "_button_event"
 SCENE_EVENT = DOMAIN + "_scene_event"
 SCENE_SERVICE = "trigger_scene"
+WRITE_DATA_SERVICE = "write_data"
 
 CONF_CRYPTO_KEY = "crypto_key"
 CONF_DISCOVERY_TIMEOUT = "discovery_timeout"
 CONF_DBUS_ADDRESS = "dbus_address"
+CONF_ENDPOINTS = "endpoints"
 CONF_OFFSET_MINUTES = "offset_minutes"
 CONF_SCENES = "scenes"
 CONF_ONOFF = [" (onoff)", "*"]

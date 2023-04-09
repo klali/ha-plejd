@@ -40,7 +40,7 @@ The component will keep the time of the Plejd system up to date.
 | DIM-01-2P |     1x (dimmable)     |                 |          |                      |         |
 | DIM-02    |     2x (dimmable)     |                 |          |                      |         |
 | LED-10    |     1x (dimmable)     |                 |          |                      | No      |
-| SPR-01    |          1x           |                 |          |                      | No      |
+| SPR-01    |          1x           |                 |          |                      |         |
 | REL-01-2P |          1x           |                 |          |                      | No      |
 | REL-02    |          2x           |                 |          |                      |         |
 | RTR-01 *  |                       |                 |    1x*   |         Yes*         |         |
@@ -60,6 +60,7 @@ suffix and then go to Developer Tools for this entity, set `supported_color_mode
 to `- onoff` and remove the `brightness` line, or restart Home Assistant.)
 
 ## Tested platforms
+
 This component has been tested on the following platforms:
 * Raspberry Pi 3b+ running ubuntu (18.04) and Home Assistant in venv.
 * Raspberry Pi 4b running Pi OS Lite and Home Assistant in docker.
@@ -68,6 +69,7 @@ This component has been tested on the following platforms:
 There's been reports that bluez version 5.37 is problematic while 5.48 works fine.
 
 ## Requirements
+
 * A Bluetooth adapter that supports Bluetooth Low Energy (BLE).
 * Obtaining the Plejd crypto key and the device ids.
 
@@ -140,7 +142,7 @@ mkdir -p /usr/share/hassio/homeassistant/custom_components/plejd
 Checkout the git repo and rename folder
 ```
 cd /usr/share/hassio/homeassistant/custom_components/plejd
-git checkout https://github.com/klali/ha-plejd.git
+git clone https://github.com/klali/ha-plejd.git
 mv custom_components/plejd/* .
 ```
 
@@ -173,6 +175,21 @@ plejd:
 
 All dictionary items map from (integral) plejd ids to the name they should
 have in Home Assistant.
+
+## Filtering devices
+
+If you know that there are a lot of plejd devices nearby that is not part of your installation you can specify which
+plejd ids home assistant is allowed to connect to using `endpoints: ['AAAAAAAAAAAA', 'BBBBBBBBBBBB', ... ]`. You can
+find the id for each plejd device in the ios/android app under devices->[plejd device]->about or in the extracted
+site.json file under `_outputAddresses`. For example, the following config would only allow connections to
+`A1B2C3D4E5F6`.
+
+```
+plejd:
+  crypto_key: !secret plejd_crypto
+  endpoints: ['A1B2C3D4E5F6']
+  ...
+```
 
 ## Restarting Home Assistant
 
