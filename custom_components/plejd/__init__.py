@@ -44,6 +44,7 @@ from .const import (
     DEFAULT_DISCOVERY_TIMEOUT,
     DOMAIN,
     SCENE_SERVICE,
+    WRITE_DATA_SERVICE,
 )
 from .plejd_service import PlejdService
 
@@ -122,6 +123,15 @@ async def async_setup(hass: HomeAssistant, config: ConfigType):
     hass.services.async_register(
         DOMAIN, SCENE_SERVICE, handle_scene_service, schema=SCENE_SERVICE_SCHEMA
     )
+
+    @callback
+    async def handle_write_data_service(call: ServiceCall) -> None:
+        data = call.data.get("data")
+        _LOGGER.debug("Sending service data: '%s'" % (data))
+        await plejd_write(plejdinfo, binascii.a2b_hex(data))
+
+    hass.services.async_register(DOMAIN, WRITE_DATA_SERVICE, handle_write_data_service)
+
     _LOGGER.debug("Plejd platform setup completed")
     hass.async_create_task(service.request_update())
     return True

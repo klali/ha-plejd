@@ -424,6 +424,10 @@ class PlejdService:
         _LOGGER.debug(f"Trigger scene {id}")
         self._hass.async_create_task(self._write(payload))
 
+    async def write_data(self, data: str) -> None:
+        """Write data directly to the bus"""
+        await self._bus.write_data("data", binascii.a2b_hex(data))
+
     async def request_update(self) -> None:
         """Request an update of all devices."""
         if not self._bus:
