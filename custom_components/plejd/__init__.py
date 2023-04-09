@@ -128,7 +128,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType):
     async def handle_write_data_service(call: ServiceCall) -> None:
         data = call.data.get("data")
         _LOGGER.debug("Sending service data: '%s'" % (data))
-        await plejd_write(plejdinfo, binascii.a2b_hex(data))
+        await service.write_data(data)
 
     hass.services.async_register(DOMAIN, WRITE_DATA_SERVICE, handle_write_data_service)
 
