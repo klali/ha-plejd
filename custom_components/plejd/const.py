@@ -22,6 +22,7 @@ SCENE_SERVICE = "trigger_scene"
 CONF_CRYPTO_KEY = "crypto_key"
 CONF_DISCOVERY_TIMEOUT = "discovery_timeout"
 CONF_DBUS_ADDRESS = "dbus_address"
+CONF_ENDPOINTS = "endpoints"
 CONF_OFFSET_MINUTES = "offset_minutes"
 CONF_SCENES = "scenes"
 CONF_ONOFF = [" (onoff)", "*"]

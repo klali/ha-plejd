@@ -37,6 +37,7 @@ from .const import (
     CONF_CRYPTO_KEY,
     CONF_DBUS_ADDRESS,
     CONF_DISCOVERY_TIMEOUT,
+    CONF_ENDPOINTS,
     CONF_OFFSET_MINUTES,
     CONF_SCENES,
     DEFAULT_DBUS_PATH,
@@ -59,6 +60,7 @@ CONFIG_SCHEMA = vol.Schema(
                     CONF_DISCOVERY_TIMEOUT, default=DEFAULT_DISCOVERY_TIMEOUT
                 ): cv.positive_int,
                 vol.Optional(CONF_DBUS_ADDRESS, default=DEFAULT_DBUS_PATH): cv.string,
+                vol.Optional(CONF_ENDPOINTS, default=[]): vol.All(cv.ensure_list, [cv.string]),
                 vol.Optional(CONF_OFFSET_MINUTES, default=0): int,
                 vol.Optional(CONF_LIGHTS, default={}): {cv.positive_int: cv.string},
                 vol.Optional(CONF_SWITCHES, default={}): {cv.positive_int: cv.string},
