@@ -1,10 +1,10 @@
 {
   "domain": "plejd",
   "name": "Plejd",
-  "codeowners": [ "@klali" ],
+  "codeowners": [ "@klali", "@bnordli" ],
   "dependencies": [],
   "documentation": "https://github.com/klali/ha-plejd",
   "iot_class": "local_push",
   "requirements": [ "dbus-next", "cryptography" ],
-  "version": "1.0.0"
+  "version": "2.0.0"
 }
