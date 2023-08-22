@@ -516,5 +516,5 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
         _LOGGER.debug("Sending service data: '%s'" % (data))
         await plejd_write(plejdinfo, binascii.a2b_hex(data))
 
-    hass.services.async_register("plejd", "write_data", plejd_service)
+    hass.services.async_register("plejd", "write_data", write_data)
     _LOGGER.debug("All plejd setup completed")
