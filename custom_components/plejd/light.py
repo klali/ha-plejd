@@ -331,11 +331,15 @@ async def connect(pi):
         if dec[0] in PLEJD_DEVICES:
             device = PLEJD_DEVICES[dec[0]]
         elif dec[0] == 0x01 and dec[3:5] == b'\x00\x1b':
-            n = dt_util.now().replace(tzinfo=None)
-            time = datetime.fromtimestamp(struct.unpack_from('<I', dec, 5)[0])
+            n = dt_util.now()
+            # this is a hack since the plejd time is local without DST
+            if n.dst():
+                n = n - n.dst()
+            n = n.replace(tzinfo=None)
             n = n + timedelta(minutes=pi["offset_minutes"])
-            delta = abs(time - n)
-            _LOGGER.debug("Plejd network reports time as '%s'", time)
+            t = datetime.fromtimestamp(struct.unpack_from('<I', dec, 5)[0])
+            delta = abs(t - n)
+            _LOGGER.debug("Plejd network reports time as '%s'", t)
             s = delta.total_seconds()
             if s > TIME_DELTA_SYNC:
                 _LOGGER.info("Plejd time delta is %d seconds, setting time to '%s'.", s, n)
