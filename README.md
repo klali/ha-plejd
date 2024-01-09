@@ -1,3 +1,8 @@
+## Deprecation notice
+
+This component has been deprecated in favor of the more user friendly
+https://github.com/thomasloven/hass_plejd HACS component.
+
 # Plejd component for Home Assistant
 
 This is a Plejd component for Home Assistant, interfacing with the Bluetooth LE
