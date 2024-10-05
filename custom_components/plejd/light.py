@@ -17,7 +17,7 @@ import logging
 import voluptuous as vol
 
 from homeassistant.core import callback
-from homeassistant.components.light import (ATTR_BRIGHTNESS, PLATFORM_SCHEMA, SUPPORT_BRIGHTNESS, LightEntity)
+from homeassistant.components.light import (ATTR_BRIGHTNESS, PLATFORM_SCHEMA, LightEntity, ColorMode )
 from homeassistant.const import CONF_NAME, CONF_DEVICES, EVENT_HOMEASSISTANT_START, EVENT_HOMEASSISTANT_STOP, STATE_ON
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.event import async_track_point_in_utc_time
@@ -121,8 +121,12 @@ class PlejdLight(LightEntity, RestoreEntity):
             return None
 
     @property
-    def supported_features(self):
-        return SUPPORT_BRIGHTNESS
+    def supported_color_modes(self):
+        return { ColorMode.BRIGHTNESS }
+
+    @property
+    def color_mode(self):
+        return ColorMode.BRIGHTNESS
 
     @property
     def unique_id(self):
